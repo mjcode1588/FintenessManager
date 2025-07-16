@@ -19,12 +19,10 @@ class WeightRecordScreen extends ConsumerWidget {
           icon: const Icon(Icons.home),
           onPressed: () => context.go('/'),
         ),
-        actions: [
-          IconButton(
-            onPressed: () => _showAddWeightDialog(context, ref),
-            icon: const Icon(Icons.add),
-          ),
-        ],
+        ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddWeightDialog(context, ref),
+        child: const Icon(Icons.add),
       ),
       body: weightRecordsAsync.when(
         data: (records) {

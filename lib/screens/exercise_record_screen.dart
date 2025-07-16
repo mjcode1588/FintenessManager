@@ -29,12 +29,10 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
           icon: const Icon(Icons.home),
           onPressed: () => context.go('/'),
         ),
-        actions: [
-          IconButton(
-            onPressed: _showAddRecordDialog,
-            icon: const Icon(Icons.add),
-          ),
-        ],
+        ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddRecordDialog,
+        child: const Icon(Icons.add),
       ),
       body: Column(
         children: [
@@ -157,48 +155,53 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
   }
 
   Future<void> _showAddRecordDialog() async {
-    final exerciseTypesAsync = ref.read(exerciseTypesProvider);
-    
-    exerciseTypesAsync.when(
-      data: (exerciseTypes) {
-        if (exerciseTypes.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('먼저 운동 종류를 추가해주세요')),
-          );
-          return;
-        }
-
-        showDialog(
-          context: context,
-          builder: (context) => AddExerciseRecordDialog(
-            exerciseTypes: exerciseTypes,
-            selectedDate: _selectedDate,
-            onSave: (record) {
-              ref.read(exerciseRecordNotifierProvider.notifier).addExerciseRecord(
-                exerciseTypeId: record['exerciseTypeId'],
-                date: record['date'],
-                weight: record['weight'],
-                reps: record['reps'],
-                duration: record['duration'],
-                sets: record['sets'],
-                notes: record['notes'],
-              );
-              ref.invalidate(exerciseRecordsByDateProvider(_selectedDate));
-            },
-          ),
-        );
-      },
-      loading: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('운동 종류를 불러오는 중...')),
-        );
-      },
-      error: (error, stack) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('오류가 발생했습니다: $error')),
-        );
-      },
+    // 로딩 인디케이터 표시
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
+
+    try {
+      final exerciseTypes = await ref.read(exerciseTypesProvider.future);
+      
+      // 로딩 인디케이터 닫기
+      Navigator.of(context).pop();
+
+      if (exerciseTypes.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('먼저 운동 종류를 추가해주세요')),
+        );
+        return;
+      }
+
+      showDialog(
+        context: context,
+        builder: (context) => AddExerciseRecordDialog(
+          exerciseTypes: exerciseTypes,
+          selectedDate: _selectedDate,
+          onSave: (record) {
+            ref.read(exerciseRecordNotifierProvider.notifier).addExerciseRecord(
+                  exerciseTypeId: record['exerciseTypeId'],
+                  date: record['date'],
+                  weight: record['weight'],
+                  reps: record['reps'],
+                  duration: record['duration'],
+                  sets: record['sets'],
+                  notes: record['notes'],
+                );
+            ref.invalidate(exerciseRecordsByDateProvider(_selectedDate));
+          },
+        ),
+      );
+    } catch (error, stack) {
+      // 로딩 인디케이터 닫기
+      Navigator.of(context).pop();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('오류가 발생했습니다: $error')),
+      );
+    }
   }
 
   Future<void> _showEditRecordDialog(Map<String, dynamic> record) async {
