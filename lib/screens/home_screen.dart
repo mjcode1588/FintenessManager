@@ -48,6 +48,13 @@ class HomeScreen extends StatelessWidget {
               Colors.purple,
               () => context.go('/statistics'),
             ),
+            _buildMenuCard(
+              context,
+              '데이터 내보내기',
+              Icons.upload_file,
+              Colors.teal,
+              () => context.go('/export'),
+            ),
           ],
         ),
       ),

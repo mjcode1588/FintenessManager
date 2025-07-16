@@ -172,6 +172,16 @@ class DatabaseHelper {
     );
   }
 
+  Future<List<Map<String, dynamic>>> getAllExerciseRecordsWithDetails() async {
+    final db = await database;
+    return await db.rawQuery('''
+      SELECT er.*, et.name as exercise_name
+      FROM exercise_records er
+      JOIN exercise_types et ON er.exercise_type_id = et.id
+      ORDER BY er.date DESC
+    ''');
+  }
+
   // 몸무게 기록 관련 메서드
   Future<List<Map<String, dynamic>>> getAllWeightRecords() async {
     final db = await database;

@@ -16,6 +16,7 @@ _$ExerciseRecordImpl _$$ExerciseRecordImplFromJson(Map<String, dynamic> json) =>
       duration: (json['duration'] as num?)?.toInt(),
       sets: (json['sets'] as num?)?.toInt(),
       notes: json['notes'] as String?,
+      exerciseName: json['exerciseName'] as String? ?? '',
     );
 
 Map<String, dynamic> _$$ExerciseRecordImplToJson(
@@ -29,4 +30,5 @@ Map<String, dynamic> _$$ExerciseRecordImplToJson(
   'duration': instance.duration,
   'sets': instance.sets,
   'notes': instance.notes,
+  'exerciseName': instance.exerciseName,
 };

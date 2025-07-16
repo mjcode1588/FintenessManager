@@ -28,7 +28,8 @@ mixin _$ExerciseRecord {
   int? get reps => throw _privateConstructorUsedError; // 횟수
   int? get duration => throw _privateConstructorUsedError; // 시간 (초)
   int? get sets => throw _privateConstructorUsedError; // 세트 수
-  String? get notes => throw _privateConstructorUsedError;
+  String? get notes => throw _privateConstructorUsedError; // 메모
+  String get exerciseName => throw _privateConstructorUsedError;
 
   /// Serializes this ExerciseRecord to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -56,6 +57,7 @@ abstract class $ExerciseRecordCopyWith<$Res> {
     int? duration,
     int? sets,
     String? notes,
+    String exerciseName,
   });
 }
 
@@ -82,6 +84,7 @@ class _$ExerciseRecordCopyWithImpl<$Res, $Val extends ExerciseRecord>
     Object? duration = freezed,
     Object? sets = freezed,
     Object? notes = freezed,
+    Object? exerciseName = null,
   }) {
     return _then(
       _value.copyWith(
@@ -117,6 +120,10 @@ class _$ExerciseRecordCopyWithImpl<$Res, $Val extends ExerciseRecord>
                 ? _value.notes
                 : notes // ignore: cast_nullable_to_non_nullable
                       as String?,
+            exerciseName: null == exerciseName
+                ? _value.exerciseName
+                : exerciseName // ignore: cast_nullable_to_non_nullable
+                      as String,
           )
           as $Val,
     );
@@ -141,6 +148,7 @@ abstract class _$$ExerciseRecordImplCopyWith<$Res>
     int? duration,
     int? sets,
     String? notes,
+    String exerciseName,
   });
 }
 
@@ -166,6 +174,7 @@ class __$$ExerciseRecordImplCopyWithImpl<$Res>
     Object? duration = freezed,
     Object? sets = freezed,
     Object? notes = freezed,
+    Object? exerciseName = null,
   }) {
     return _then(
       _$ExerciseRecordImpl(
@@ -201,6 +210,10 @@ class __$$ExerciseRecordImplCopyWithImpl<$Res>
             ? _value.notes
             : notes // ignore: cast_nullable_to_non_nullable
                   as String?,
+        exerciseName: null == exerciseName
+            ? _value.exerciseName
+            : exerciseName // ignore: cast_nullable_to_non_nullable
+                  as String,
       ),
     );
   }
@@ -208,7 +221,7 @@ class __$$ExerciseRecordImplCopyWithImpl<$Res>
 
 /// @nodoc
 @JsonSerializable()
-class _$ExerciseRecordImpl implements _ExerciseRecord {
+class _$ExerciseRecordImpl extends _ExerciseRecord {
   const _$ExerciseRecordImpl({
     required this.id,
     required this.exerciseTypeId,
@@ -218,7 +231,8 @@ class _$ExerciseRecordImpl implements _ExerciseRecord {
     this.duration,
     this.sets,
     this.notes,
-  });
+    this.exerciseName = '',
+  }) : super._();
 
   factory _$ExerciseRecordImpl.fromJson(Map<String, dynamic> json) =>
       _$$ExerciseRecordImplFromJson(json);
@@ -243,10 +257,14 @@ class _$ExerciseRecordImpl implements _ExerciseRecord {
   // 세트 수
   @override
   final String? notes;
+  // 메모
+  @override
+  @JsonKey()
+  final String exerciseName;
 
   @override
   String toString() {
-    return 'ExerciseRecord(id: $id, exerciseTypeId: $exerciseTypeId, date: $date, weight: $weight, reps: $reps, duration: $duration, sets: $sets, notes: $notes)';
+    return 'ExerciseRecord(id: $id, exerciseTypeId: $exerciseTypeId, date: $date, weight: $weight, reps: $reps, duration: $duration, sets: $sets, notes: $notes, exerciseName: $exerciseName)';
   }
 
   @override
@@ -263,7 +281,9 @@ class _$ExerciseRecordImpl implements _ExerciseRecord {
             (identical(other.duration, duration) ||
                 other.duration == duration) &&
             (identical(other.sets, sets) || other.sets == sets) &&
-            (identical(other.notes, notes) || other.notes == notes));
+            (identical(other.notes, notes) || other.notes == notes) &&
+            (identical(other.exerciseName, exerciseName) ||
+                other.exerciseName == exerciseName));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -278,6 +298,7 @@ class _$ExerciseRecordImpl implements _ExerciseRecord {
     duration,
     sets,
     notes,
+    exerciseName,
   );
 
   /// Create a copy of ExerciseRecord
@@ -297,7 +318,7 @@ class _$ExerciseRecordImpl implements _ExerciseRecord {
   }
 }
 
-abstract class _ExerciseRecord implements ExerciseRecord {
+abstract class _ExerciseRecord extends ExerciseRecord {
   const factory _ExerciseRecord({
     required final int id,
     required final int exerciseTypeId,
@@ -307,7 +328,9 @@ abstract class _ExerciseRecord implements ExerciseRecord {
     final int? duration,
     final int? sets,
     final String? notes,
+    final String exerciseName,
   }) = _$ExerciseRecordImpl;
+  const _ExerciseRecord._() : super._();
 
   factory _ExerciseRecord.fromJson(Map<String, dynamic> json) =
       _$ExerciseRecordImpl.fromJson;
@@ -327,7 +350,9 @@ abstract class _ExerciseRecord implements ExerciseRecord {
   @override
   int? get sets; // 세트 수
   @override
-  String? get notes;
+  String? get notes; // 메모
+  @override
+  String get exerciseName;
 
   /// Create a copy of ExerciseRecord
   /// with the given fields replaced by the non-null parameter values.

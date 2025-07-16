@@ -10,6 +10,7 @@ import 'screens/add_exercise_screen.dart';
 import 'screens/exercise_record_screen.dart';
 import 'screens/weight_record_screen.dart';
 import 'screens/statistics_screen.dart';
+import 'screens/export_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -127,6 +128,16 @@ final _router = GoRouter(
           return false;
         },
         child: const StatisticsScreen(),
+      ),
+    ),
+    GoRoute(
+      path: '/export',
+      builder: (context, state) => WillPopScope(
+        onWillPop: () async {
+          context.go('/');
+          return false;
+        },
+        child: ExportScreen(),
       ),
     ),
   ],
