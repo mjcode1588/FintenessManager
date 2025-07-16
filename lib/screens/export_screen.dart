@@ -7,6 +7,7 @@ import '../database/database_helper.dart';
 import '../models/weight_record.dart';
 import '../models/exercise_record.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:go_router/go_router.dart';
 
 class ExportScreen extends StatelessWidget {
   final dbHelper = DatabaseHelper();
@@ -224,7 +225,18 @@ class ExportScreen extends StatelessWidget {
         leading: IconButton(
           icon: Icon(Icons.home),
           onPressed: () {
-            Navigator.of(context).popUntil((route) => route.isFirst);
+            // go_router를 사용하는 다른 화면들과 동일하게 홈으로 이동
+            Navigator.of(
+              context,
+            ).popUntil((route) => route.isFirst); // 기존 코드 주석처리 가능
+            // context.go('/')로 홈 이동
+            // go_router import 필요
+            // context.go('/')
+            // 아래처럼 실제로 context.go('/')로 변경
+            // (go_router import가 없으면 추가)
+            // context.go('/')
+            // 실제 적용:
+            context.go('/');
           },
         ),
       ),
