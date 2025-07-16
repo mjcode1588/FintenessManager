@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../models/exercise_type.dart';
 import '../providers/exercise_provider.dart';
 import '../providers/database_provider.dart';
@@ -10,16 +11,58 @@ class ExerciseRecordScreen extends ConsumerStatefulWidget {
   const ExerciseRecordScreen({super.key});
 
   @override
-  ConsumerState<ExerciseRecordScreen> createState() => _ExerciseRecordScreenState();
+  ConsumerState<ExerciseRecordScreen> createState() =>
+      _ExerciseRecordScreenState();
 }
 
 class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
   DateTime _selectedDate = DateTime.now();
   final DateFormat _dateFormat = DateFormat('yyyy년 MM월 dd일');
+  Set<DateTime> _recordedDates = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRecordedDates();
+  }
+
+  Future<void> _fetchRecordedDates() async {
+    final allRecords = await ref
+        .read(databaseProvider)
+        .getAllExerciseRecordsWithDetails();
+    setState(() {
+      _recordedDates = allRecords
+          .map((r) => DateTime.parse(r['date']).toLocal())
+          .map((d) => DateTime(d.year, d.month, d.day))
+          .toSet();
+    });
+  }
+
+  List<Widget> _buildMarkers(DateTime day, DateTime focusedDay) {
+    final isRecorded = _recordedDates.contains(
+      DateTime(day.year, day.month, day.day),
+    );
+    if (isRecorded) {
+      return [
+        Container(
+          margin: const EdgeInsets.only(top: 2),
+          width: 6,
+          height: 6,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.blue,
+          ),
+        ),
+      ];
+    }
+    return [];
+  }
 
   @override
   Widget build(BuildContext context) {
-    final exerciseRecordsAsync = ref.watch(exerciseRecordsByDateProvider(_selectedDate));
+    final exerciseRecordsAsync = ref.watch(
+      exerciseRecordsByDateProvider(_selectedDate),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -29,113 +72,122 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
           icon: const Icon(Icons.home),
           onPressed: () => context.go('/'),
         ),
-        ),
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddRecordDialog,
         child: const Icon(Icons.add),
       ),
-      body: Column(
-        children: [
-          // 날짜 선택 카드
-          Card(
-            margin: const EdgeInsets.all(16),
-            child: Padding(
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 커스텀 캘린더
+            Padding(
               padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  const Icon(Icons.calendar_today),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _dateFormat.format(_selectedDate),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+              child: TableCalendar(
+                availableCalendarFormats: const {CalendarFormat.month: 'Month'},
+                firstDay: DateTime(2020),
+                lastDay: DateTime.now().add(const Duration(days: 365)),
+                focusedDay: _selectedDate,
+                selectedDayPredicate: (day) => isSameDay(day, _selectedDate),
+                onDaySelected: (selectedDay, focusedDay) {
+                  setState(() {
+                    _selectedDate = selectedDay;
+                  });
+                },
+                calendarBuilders: CalendarBuilders(
+                  markerBuilder: (context, day, events) => Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: _buildMarkers(day, _selectedDate),
                   ),
-                  TextButton(
-                    onPressed: _selectDate,
-                    child: const Text('날짜 변경'),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
-          
-          // 운동 기록 목록
-          Expanded(
-            child: exerciseRecordsAsync.when(
-              data: (records) {
-                if (records.isEmpty) {
-                  return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.assignment, size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text(
-                          '이 날짜에 운동 기록이 없습니다.\n새로운 기록을 추가해보세요!',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 16, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  );
-                }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: records.length,
-                  itemBuilder: (context, index) {
-                    final record = records[index];
-                    final weight = record['weight'] as double?;
-                    final reps = record['reps'] as int?;
-                    final duration = record['duration'] as int?;
-                    final sets = record['sets'] as int?;
-                    final notes = record['notes'] as String?;
-                    final exerciseName = record['exercise_name'] as String? ?? '알 수 없는 운동';
-                    
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        title: Text(exerciseName),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (weight != null && reps != null)
-                              Text('${weight}kg × ${reps}회 × ${sets ?? 1}세트'),
-                            if (duration != null)
-                              Text('${duration ~/ 60}분 ${duration % 60}초'),
-                            if (notes != null && notes.isNotEmpty)
-                              Text('메모: $notes'),
-                          ],
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              onPressed: () => _showEditRecordDialog(record),
-                              icon: const Icon(Icons.edit),
-                            ),
-                            IconButton(
-                              onPressed: () => _deleteRecord(record['id'] as int),
-                              icon: const Icon(Icons.delete),
-                            ),
-                          ],
-                        ),
+            // 운동 기록 목록
+            Expanded(
+              child: exerciseRecordsAsync.when(
+                data: (records) {
+                  if (records.isEmpty) {
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.assignment, size: 64, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text(
+                            '이 날짜에 운동 기록이 없습니다.\n새로운 기록을 추가해보세요!',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                        ],
                       ),
                     );
-                  },
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(
-                child: Text('오류가 발생했습니다: $error'),
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: records.length,
+                    itemBuilder: (context, index) {
+                      final record = records[index];
+                      final weight = record['weight'] as double?;
+                      final reps = record['reps'] as int?;
+                      final duration = record['duration'] as int?;
+                      final sets = record['sets'] as int?;
+                      final notes = record['notes'] as String?;
+                      final exerciseName =
+                          record['exercise_name'] as String? ?? '알 수 없는 운동';
+                      final countingMethod =
+                          record['counting_method'] as String?;
+                      final weightType = record['weight_type'] as String?;
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          title: Text(exerciseName),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (countingMethod == 'reps' && reps != null)
+                                Text(
+                                  (weightType == 'bodyweight'
+                                          ? '몸무게 없이 '
+                                          : (weight != null
+                                                ? '${weight}kg × '
+                                                : '')) +
+                                      '${reps}회 × ${sets ?? 1}세트',
+                                ),
+                              if (countingMethod == 'time' && duration != null)
+                                Text('${duration ~/ 60}분 ${duration % 60}초'),
+                              if (notes != null && notes.isNotEmpty)
+                                Text('메모: $notes'),
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                onPressed: () => _showEditRecordDialog(record),
+                                icon: const Icon(Icons.edit),
+                              ),
+                              IconButton(
+                                onPressed: () =>
+                                    _deleteRecord(record['id'] as int),
+                                icon: const Icon(Icons.delete),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, stack) =>
+                    Center(child: Text('오류가 발생했습니다: $error')),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -164,14 +216,14 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
 
     try {
       final exerciseTypes = await ref.read(exerciseTypesProvider.future);
-      
+
       // 로딩 인디케이터 닫기
       Navigator.of(context).pop();
 
       if (exerciseTypes.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('먼저 운동 종류를 추가해주세요')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('먼저 운동 종류를 추가해주세요')));
         return;
       }
 
@@ -181,7 +233,9 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
           exerciseTypes: exerciseTypes,
           selectedDate: _selectedDate,
           onSave: (record) {
-            ref.read(exerciseRecordNotifierProvider.notifier).addExerciseRecord(
+            ref
+                .read(exerciseRecordNotifierProvider.notifier)
+                .addExerciseRecord(
                   exerciseTypeId: record['exerciseTypeId'],
                   date: record['date'],
                   weight: record['weight'],
@@ -197,16 +251,16 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
     } catch (error, stack) {
       // 로딩 인디케이터 닫기
       Navigator.of(context).pop();
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('오류가 발생했습니다: $error')),
-      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('오류가 발생했습니다: $error')));
     }
   }
 
   Future<void> _showEditRecordDialog(Map<String, dynamic> record) async {
     final exerciseTypesAsync = ref.read(exerciseTypesProvider);
-    
+
     exerciseTypesAsync.when(
       data: (exerciseTypes) {
         showDialog(
@@ -215,21 +269,23 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
             record: record,
             exerciseTypes: exerciseTypes,
             onSave: (updatedRecord) {
-              ref.read(exerciseRecordNotifierProvider.notifier).updateExerciseRecord(updatedRecord);
+              ref
+                  .read(exerciseRecordNotifierProvider.notifier)
+                  .updateExerciseRecord(updatedRecord);
               ref.invalidate(exerciseRecordsByDateProvider(_selectedDate));
             },
           ),
         );
       },
       loading: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('운동 종류를 불러오는 중...')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('운동 종류를 불러오는 중...')));
       },
       error: (error, stack) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('오류가 발생했습니다: $error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('오류가 발생했습니다: $error')));
       },
     );
   }
@@ -254,7 +310,9 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
     );
 
     if (confirmed == true) {
-      await ref.read(exerciseRecordNotifierProvider.notifier).deleteExerciseRecord(id);
+      await ref
+          .read(exerciseRecordNotifierProvider.notifier)
+          .deleteExerciseRecord(id);
       ref.invalidate(exerciseRecordsByDateProvider(_selectedDate));
     }
   }
@@ -273,7 +331,8 @@ class AddExerciseRecordDialog extends StatefulWidget {
   });
 
   @override
-  State<AddExerciseRecordDialog> createState() => _AddExerciseRecordDialogState();
+  State<AddExerciseRecordDialog> createState() =>
+      _AddExerciseRecordDialogState();
 }
 
 class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
@@ -285,8 +344,11 @@ class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
   final _notesController = TextEditingController();
 
   int? _selectedExerciseTypeId;
-  Map<String, dynamic>? get _selectedExerciseType => 
-      widget.exerciseTypes.firstWhere((e) => e['id'] == _selectedExerciseTypeId, orElse: () => widget.exerciseTypes.first);
+  Map<String, dynamic>? get _selectedExerciseType =>
+      widget.exerciseTypes.firstWhere(
+        (e) => e['id'] == _selectedExerciseTypeId,
+        orElse: () => widget.exerciseTypes.first,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -359,7 +421,8 @@ class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
                   ),
                   keyboardType: TextInputType.number,
                 ),
-              ] else if (_selectedExerciseType?['counting_method'] == 'time') ...[
+              ] else if (_selectedExerciseType?['counting_method'] ==
+                  'time') ...[
                 TextFormField(
                   controller: _durationController,
                   decoration: const InputDecoration(
@@ -375,7 +438,7 @@ class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
                   },
                 ),
               ],
-              
+
               const SizedBox(height: 16),
               TextFormField(
                 controller: _notesController,
@@ -394,10 +457,7 @@ class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('취소'),
         ),
-        TextButton(
-          onPressed: _saveRecord,
-          child: const Text('저장'),
-        ),
+        TextButton(onPressed: _saveRecord, child: const Text('저장')),
       ],
     );
   }
@@ -408,10 +468,18 @@ class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
     final record = {
       'exerciseTypeId': _selectedExerciseType!['id'] as int,
       'date': widget.selectedDate,
-      'weight': _weightController.text.isNotEmpty ? double.parse(_weightController.text) : null,
-      'reps': _repsController.text.isNotEmpty ? int.parse(_repsController.text) : null,
-      'duration': _durationController.text.isNotEmpty ? int.parse(_durationController.text) : null,
-      'sets': _setsController.text.isNotEmpty ? int.parse(_setsController.text) : null,
+      'weight': _weightController.text.isNotEmpty
+          ? double.parse(_weightController.text)
+          : null,
+      'reps': _repsController.text.isNotEmpty
+          ? int.parse(_repsController.text)
+          : null,
+      'duration': _durationController.text.isNotEmpty
+          ? int.parse(_durationController.text)
+          : null,
+      'sets': _setsController.text.isNotEmpty
+          ? int.parse(_setsController.text)
+          : null,
       'notes': _notesController.text.isNotEmpty ? _notesController.text : null,
     };
 
@@ -443,7 +511,8 @@ class EditExerciseRecordDialog extends StatefulWidget {
   });
 
   @override
-  State<EditExerciseRecordDialog> createState() => _EditExerciseRecordDialogState();
+  State<EditExerciseRecordDialog> createState() =>
+      _EditExerciseRecordDialogState();
 }
 
 class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
@@ -455,13 +524,16 @@ class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
   late final TextEditingController _notesController;
 
   int? _selectedExerciseTypeId;
-  Map<String, dynamic>? get _selectedExerciseType => 
-      widget.exerciseTypes.firstWhere((e) => e['id'] == _selectedExerciseTypeId, orElse: () => widget.exerciseTypes.first);
+  Map<String, dynamic>? get _selectedExerciseType =>
+      widget.exerciseTypes.firstWhere(
+        (e) => e['id'] == _selectedExerciseTypeId,
+        orElse: () => widget.exerciseTypes.first,
+      );
 
   @override
   void initState() {
     super.initState();
-    
+
     // 기존 데이터로 컨트롤러 초기화
     final weight = widget.record['weight'] as double?;
     final reps = widget.record['reps'] as int?;
@@ -469,10 +541,12 @@ class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
     final sets = widget.record['sets'] as int?;
     final notes = widget.record['notes'] as String?;
     _selectedExerciseTypeId = widget.record['exercise_type_id'] as int;
-    
+
     _weightController = TextEditingController(text: weight?.toString() ?? '');
     _repsController = TextEditingController(text: reps?.toString() ?? '');
-    _durationController = TextEditingController(text: duration?.toString() ?? '');
+    _durationController = TextEditingController(
+      text: duration?.toString() ?? '',
+    );
     _setsController = TextEditingController(text: sets?.toString() ?? '1');
     _notesController = TextEditingController(text: notes ?? '');
   }
@@ -548,7 +622,8 @@ class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
                   ),
                   keyboardType: TextInputType.number,
                 ),
-              ] else if (_selectedExerciseType?['counting_method'] == 'time') ...[
+              ] else if (_selectedExerciseType?['counting_method'] ==
+                  'time') ...[
                 TextFormField(
                   controller: _durationController,
                   decoration: const InputDecoration(
@@ -564,7 +639,7 @@ class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
                   },
                 ),
               ],
-              
+
               const SizedBox(height: 16),
               TextFormField(
                 controller: _notesController,
@@ -583,10 +658,7 @@ class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('취소'),
         ),
-        TextButton(
-          onPressed: _saveRecord,
-          child: const Text('저장'),
-        ),
+        TextButton(onPressed: _saveRecord, child: const Text('저장')),
       ],
     );
   }
@@ -594,13 +666,24 @@ class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
   void _saveRecord() {
     if (!_formKey.currentState!.validate()) return;
 
-    final updatedRecord = Map<String, dynamic>.from(widget.record);
-    updatedRecord['exercise_type_id'] = _selectedExerciseTypeId;
-    updatedRecord['weight'] = _weightController.text.isNotEmpty ? double.parse(_weightController.text) : null;
-    updatedRecord['reps'] = _repsController.text.isNotEmpty ? int.parse(_repsController.text) : null;
-    updatedRecord['duration'] = _durationController.text.isNotEmpty ? int.parse(_durationController.text) : null;
-    updatedRecord['sets'] = _setsController.text.isNotEmpty ? int.parse(_setsController.text) : null;
-    updatedRecord['notes'] = _notesController.text.isNotEmpty ? _notesController.text : null;
+    final updatedRecord = {
+      'id': widget.record['id'],
+      'exercise_type_id': _selectedExerciseTypeId,
+      'date': widget.record['date'],
+      'weight': _weightController.text.isNotEmpty
+          ? double.parse(_weightController.text)
+          : null,
+      'reps': _repsController.text.isNotEmpty
+          ? int.parse(_repsController.text)
+          : null,
+      'duration': _durationController.text.isNotEmpty
+          ? int.parse(_durationController.text)
+          : null,
+      'sets': _setsController.text.isNotEmpty
+          ? int.parse(_setsController.text)
+          : null,
+      'notes': _notesController.text.isNotEmpty ? _notesController.text : null,
+    };
 
     widget.onSave(updatedRecord);
     Navigator.of(context).pop();

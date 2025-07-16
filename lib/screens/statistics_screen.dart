@@ -43,13 +43,15 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: const [
-          DashboardTab(),
-          WeightChartTab(),
-          ExerciseAnalysisTab(),
-        ],
+      body: SafeArea(
+        child: TabBarView(
+          controller: _tabController,
+          children: const [
+            DashboardTab(),
+            WeightChartTab(),
+            ExerciseAnalysisTab(),
+          ],
+        ),
       ),
     );
   }
@@ -77,18 +79,15 @@ class DashboardTab extends ConsumerWidget {
         children: [
           const Text(
             '이번 주 요약',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          
+
           weeklyStatsAsync.when(
             data: (weeklyStats) {
               final totalVolume = weeklyStats['totalVolume'] as double;
               final workoutDays = weeklyStats['workoutDays'] as int;
-              
+
               return Column(
                 children: [
                   Row(
@@ -113,7 +112,7 @@ class DashboardTab extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
+
                   Row(
                     children: [
                       Expanded(
@@ -129,7 +128,9 @@ class DashboardTab extends ConsumerWidget {
                         child: recentWeightAsync.when(
                           data: (avgWeight) => _buildStatCard(
                             '평균 몸무게',
-                            avgWeight != null ? '${avgWeight.toStringAsFixed(1)}kg' : '기록 없음',
+                            avgWeight != null
+                                ? '${avgWeight.toStringAsFixed(1)}kg'
+                                : '기록 없음',
                             Icons.monitor_weight,
                             Colors.purple,
                           ),
@@ -247,30 +248,27 @@ class DashboardTab extends ConsumerWidget {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 32),
-          
+
           const Text(
             '이번 달 목표',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          
+
           monthlyStatsAsync.when(
             data: (monthlyStats) {
               final totalVolume = monthlyStats['totalVolume'] as double;
               final workoutDays = monthlyStats['workoutDays'] as int;
-              
+
               // 목표 설정
               const targetWorkoutDays = 20;
               const targetVolume = 10000.0;
-              
+
               final workoutProgress = workoutDays / targetWorkoutDays;
               final volumeProgress = totalVolume / targetVolume;
-              
+
               return Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -292,12 +290,14 @@ class DashboardTab extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      
+
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('총 볼륨'),
-                          Text('${totalVolume.toStringAsFixed(0)} / ${targetVolume.toStringAsFixed(0)}kg'),
+                          Text(
+                            '${totalVolume.toStringAsFixed(0)} / ${targetVolume.toStringAsFixed(0)}kg',
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -320,10 +320,7 @@ class DashboardTab extends ConsumerWidget {
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('운동 일수'),
-                        Text('로딩 중...'),
-                      ],
+                      children: [const Text('운동 일수'), Text('로딩 중...')],
                     ),
                     const SizedBox(height: 8),
                     LinearProgressIndicator(
@@ -331,13 +328,10 @@ class DashboardTab extends ConsumerWidget {
                       backgroundColor: Colors.grey[300],
                     ),
                     const SizedBox(height: 16),
-                    
+
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('총 볼륨'),
-                        Text('로딩 중...'),
-                      ],
+                      children: [const Text('총 볼륨'), Text('로딩 중...')],
                     ),
                     const SizedBox(height: 8),
                     LinearProgressIndicator(
@@ -360,7 +354,12 @@ class DashboardTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Card(
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -369,10 +368,7 @@ class DashboardTab extends ConsumerWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              color.withOpacity(0.8),
-              color.withOpacity(0.6),
-            ],
+            colors: [color.withOpacity(0.8), color.withOpacity(0.6)],
           ),
         ),
         child: Column(
@@ -389,10 +385,7 @@ class DashboardTab extends ConsumerWidget {
             ),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.white70,
-              ),
+              style: const TextStyle(fontSize: 12, color: Colors.white70),
               textAlign: TextAlign.center,
             ),
           ],
@@ -443,6 +436,11 @@ class WeightChartTab extends ConsumerWidget {
         final latestWeight = weights.first;
         final maxWeight = weights.reduce((a, b) => a > b ? a : b);
         final minWeight = weights.reduce((a, b) => a < b ? a : b);
+        final avgWeight = weights.isNotEmpty
+            ? weights.reduce((a, b) => a + b) / weights.length
+            : 0.0;
+        final minY = (avgWeight - 30).clamp(0, double.infinity).toDouble();
+        final maxY = (avgWeight + 30).toDouble();
 
         return Padding(
           padding: const EdgeInsets.all(16),
@@ -451,13 +449,10 @@ class WeightChartTab extends ConsumerWidget {
             children: [
               const Text(
                 '몸무게 변화 추이',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              
+
               Expanded(
                 child: Card(
                   child: Padding(
@@ -483,7 +478,10 @@ class WeightChartTab extends ConsumerWidget {
                               showTitles: true,
                               reservedSize: 30,
                               getTitlesWidget: (value, meta) {
-                                final date = DateTime.fromMillisecondsSinceEpoch(value.toInt());
+                                final date =
+                                    DateTime.fromMillisecondsSinceEpoch(
+                                      value.toInt(),
+                                    );
                                 return Text(
                                   DateFormat('MM/dd').format(date),
                                   style: const TextStyle(fontSize: 10),
@@ -491,10 +489,21 @@ class WeightChartTab extends ConsumerWidget {
                               },
                             ),
                           ),
-                          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          topTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          rightTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
                         ),
                         borderData: FlBorderData(show: true),
+                        minY: minY,
+                        maxY: maxY,
+                        lineTouchData: LineTouchData(
+                          enabled: true,
+                          handleBuiltInTouches: true,
+                        ),
+                        clipData: FlClipData.all(),
                         lineBarsData: [
                           LineChartBarData(
                             spots: chartData,
@@ -514,7 +523,7 @@ class WeightChartTab extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // 통계 정보
               Card(
                 child: Padding(
@@ -553,9 +562,7 @@ class WeightChartTab extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stack) => Center(
-        child: Text('오류가 발생했습니다: $error'),
-      ),
+      error: (error, stack) => Center(child: Text('오류가 발생했습니다: $error')),
     );
   }
 }
@@ -575,13 +582,10 @@ class ExerciseAnalysisTab extends ConsumerWidget {
         children: [
           const Text(
             '운동 분석',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          
+
           // 이번 주 부위별 운동 빈도
           Card(
             child: Padding(
@@ -591,16 +595,14 @@ class ExerciseAnalysisTab extends ConsumerWidget {
                 children: [
                   const Text(
                     '이번 주 부위별 운동 빈도',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
                   weeklyStatsAsync.when(
                     data: (weeklyStats) {
-                      final bodyPartFrequency = weeklyStats['bodyPartFrequency'] as Map<String, int>;
-                      
+                      final bodyPartFrequency =
+                          weeklyStats['bodyPartFrequency'] as Map<String, int>;
+
                       if (bodyPartFrequency.isEmpty) {
                         return const Text(
                           '이번 주 운동 기록이 없습니다.',
@@ -614,59 +616,83 @@ class ExerciseAnalysisTab extends ConsumerWidget {
                         child: BarChart(
                           BarChartData(
                             alignment: BarChartAlignment.spaceAround,
-                            maxY: bodyPartFrequency.values.reduce((a, b) => a > b ? a : b).toDouble() + 2,
+                            maxY:
+                                bodyPartFrequency.values
+                                    .reduce((a, b) => a > b ? a : b)
+                                    .toDouble() +
+                                2,
                             barTouchData: BarTouchData(enabled: false),
                             titlesData: FlTitlesData(
                               show: true,
                               bottomTitles: AxisTitles(
                                 sideTitles: SideTitles(
                                   showTitles: true,
-                                  getTitlesWidget: (double value, TitleMeta meta) {
-                                    final bodyParts = bodyPartFrequency.keys.toList();
-                                    if (value.toInt() < bodyParts.length) {
-                                      return Padding(
-                                        padding: const EdgeInsets.only(top: 8.0),
-                                        child: Text(
-                                          _getBodyPartName(bodyParts[value.toInt()]),
-                                          style: const TextStyle(fontSize: 10),
-                                        ),
-                                      );
-                                    }
-                                    return const Text('');
-                                  },
+                                  getTitlesWidget:
+                                      (double value, TitleMeta meta) {
+                                        final bodyParts = bodyPartFrequency.keys
+                                            .toList();
+                                        if (value.toInt() < bodyParts.length) {
+                                          return Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 8.0,
+                                            ),
+                                            child: Text(
+                                              _getBodyPartName(
+                                                bodyParts[value.toInt()],
+                                              ),
+                                              style: const TextStyle(
+                                                fontSize: 10,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                        return const Text('');
+                                      },
                                 ),
                               ),
                               leftTitles: AxisTitles(
                                 sideTitles: SideTitles(
                                   showTitles: true,
                                   reservedSize: 30,
-                                  getTitlesWidget: (double value, TitleMeta meta) {
-                                    return Text(
-                                      value.toInt().toString(),
-                                      style: const TextStyle(fontSize: 10),
-                                    );
-                                  },
+                                  getTitlesWidget:
+                                      (double value, TitleMeta meta) {
+                                        return Text(
+                                          value.toInt().toString(),
+                                          style: const TextStyle(fontSize: 10),
+                                        );
+                                      },
                                 ),
                               ),
-                              topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                              rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              topTitles: AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
+                              ),
+                              rightTitles: AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
+                              ),
                             ),
                             borderData: FlBorderData(show: false),
-                            barGroups: bodyPartFrequency.entries.toList().asMap().entries.map((entry) {
-                              final index = entry.key;
-                              final bodyPartEntry = entry.value;
-                              return BarChartGroupData(
-                                x: index,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: bodyPartEntry.value.toDouble(),
-                                    color: _getBodyPartColor(bodyPartEntry.key),
-                                    width: 20,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ],
-                              );
-                            }).toList(),
+                            barGroups: bodyPartFrequency.entries
+                                .toList()
+                                .asMap()
+                                .entries
+                                .map((entry) {
+                                  final index = entry.key;
+                                  final bodyPartEntry = entry.value;
+                                  return BarChartGroupData(
+                                    x: index,
+                                    barRods: [
+                                      BarChartRodData(
+                                        toY: bodyPartEntry.value.toDouble(),
+                                        color: _getBodyPartColor(
+                                          bodyPartEntry.key,
+                                        ),
+                                        width: 20,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ],
+                                  );
+                                })
+                                .toList(),
                           ),
                         ),
                       );
@@ -677,9 +703,7 @@ class ExerciseAnalysisTab extends ConsumerWidget {
                     ),
                     error: (error, stack) => SizedBox(
                       height: 200,
-                      child: Center(
-                        child: Text('오류가 발생했습니다: $error'),
-                      ),
+                      child: Center(child: Text('오류가 발생했습니다: $error')),
                     ),
                   ),
                 ],
@@ -687,7 +711,7 @@ class ExerciseAnalysisTab extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // 이번 달 부위별 운동 빈도
           Card(
             child: Padding(
@@ -697,16 +721,14 @@ class ExerciseAnalysisTab extends ConsumerWidget {
                 children: [
                   const Text(
                     '이번 달 부위별 운동 빈도',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
                   monthlyStatsAsync.when(
                     data: (monthlyStats) {
-                      final bodyPartFrequency = monthlyStats['bodyPartFrequency'] as Map<String, int>;
-                      
+                      final bodyPartFrequency =
+                          monthlyStats['bodyPartFrequency'] as Map<String, int>;
+
                       if (bodyPartFrequency.isEmpty) {
                         return const Text(
                           '이번 달 운동 기록이 없습니다.',
@@ -720,15 +742,18 @@ class ExerciseAnalysisTab extends ConsumerWidget {
                         children: bodyPartFrequency.entries.map((entry) {
                           final bodyPart = entry.key;
                           final frequency = entry.value;
-                          final maxFrequency = bodyPartFrequency.values.reduce((a, b) => a > b ? a : b);
+                          final maxFrequency = bodyPartFrequency.values.reduce(
+                            (a, b) => a > b ? a : b,
+                          );
                           final progress = frequency / maxFrequency;
-                          
+
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12.0),
                             child: Column(
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(_getBodyPartName(bodyPart)),
                                     Text('${frequency}회'),
@@ -748,10 +773,10 @@ class ExerciseAnalysisTab extends ConsumerWidget {
                         }).toList(),
                       );
                     },
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (error, stack) => Center(
-                      child: Text('오류가 발생했습니다: $error'),
-                    ),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (error, stack) =>
+                        Center(child: Text('오류가 발생했습니다: $error')),
                   ),
                 ],
               ),
@@ -804,4 +829,3 @@ class ExerciseAnalysisTab extends ConsumerWidget {
     }
   }
 }
-
