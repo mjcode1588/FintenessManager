@@ -282,7 +282,7 @@ class DatabaseHelper {
     return (result.first['workout_days'] as int?) ?? 0;
   }
 
-  """  Future<Map<String, int>> getExerciseFrequencyByBodyPart(DateTime start, DateTime end) async {
+  Future<Map<String, int>> getExerciseFrequencyByBodyPart(DateTime start, DateTime end) async {
     final db = await database;
     final startStr = start.toIso8601String().split('T')[0];
     final endStr = end.toIso8601String().split('T')[0];
@@ -400,6 +400,4 @@ class DatabaseHelper {
 
     return (result.first['total_duration'] as int?) ?? 0;
   }
-}
-""
 }
