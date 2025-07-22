@@ -9,6 +9,12 @@ final exerciseTypesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) a
   return await database.getAllExerciseTypes();
 });
 
+// 운동 종류 목록 프로바이더
+final bodypartsTypesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final database = ref.watch(databaseProvider);
+  return await database.getAllBodyPartsTypes();
+});
+
 // 부위별 운동 종류 프로바이더
 final exerciseTypesByBodyPartProvider = 
     FutureProvider.family<List<Map<String, dynamic>>, String>((ref, bodyPart) async {

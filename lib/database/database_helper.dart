@@ -102,6 +102,26 @@ class DatabaseHelper {
     return await db.query('exercise_types');
   }
 
+  // 몸 부위 관련 메서드
+  Future<List<Map<String, dynamic>>> getAllBodyPartsTypes() async {
+    final db = await database;
+    return await db.query('body_part');
+  }
+
+  Future<Map<String, dynamic>?> getExerciseTypeByName(String name) async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'exercise_types',
+      where: 'name = ? COLLATE NOCASE',
+      whereArgs: [name],
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return maps.first;
+    }
+    return null;
+  }
+
   Future<List<Map<String, dynamic>>> getExerciseTypesByBodyPart(String bodyPart) async {
     final db = await database;
     return await db.query(

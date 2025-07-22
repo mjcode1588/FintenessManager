@@ -71,7 +71,7 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
                       border: OutlineInputBorder(),
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      if (value == null || value.trim().isEmpty) {
                         return '운동 이름을 입력해주세요';
                       }
                       return null;
@@ -190,23 +190,34 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
       _isLoading = true;
     });
 
+    final exerciseName = _nameController.text.trim();
+
     try {
       final database = ref.read(databaseProvider);
-      await database.insertExerciseType({
-        'name': _nameController.text,
-        'category': _selectedCategory.name,
-        'body_part': _selectedBodyPart.name,
-        'counting_method': _selectedCountingMethod.name,
-        'weight_type': _selectedWeightType.name,
-      });
+      final existingExercise = await database.getExerciseTypeByName(exerciseName);
 
-      if (mounted) {
-        ref.invalidate(exerciseTypesProvider);
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('운동이 추가되었습니다')),
-        );
-        context.pop();
+      if (existingExercise != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('이미 추가된 운동입니다.')),
+          );
+        }
+      } else {
+        await database.insertExerciseType({
+          'name': exerciseName,
+          'category': _selectedCategory.name,
+          'body_part': _selectedBodyPart.name,
+          'counting_method': _selectedCountingMethod.name,
+          'weight_type': _selectedWeightType.name,
+        });
+
+        if (mounted) {
+          ref.invalidate(exerciseTypesProvider);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('운동이 추가되었습니다')),
+          );
+          context.pop();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -215,9 +226,11 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
         );
       }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

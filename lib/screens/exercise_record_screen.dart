@@ -331,8 +331,7 @@ class AddExerciseRecordDialog extends StatefulWidget {
   });
 
   @override
-  State<AddExerciseRecordDialog> createState() =>
-      _AddExerciseRecordDialogState();
+  State<AddExerciseRecordDialog> createState() => _AddExerciseRecordDialogState();
 }
 
 class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
@@ -340,15 +339,49 @@ class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
   final _weightController = TextEditingController();
   final _repsController = TextEditingController();
   final _durationController = TextEditingController();
-  final _setsController = TextEditingController(text: '1');
   final _notesController = TextEditingController();
+  int _sets = 1;
 
+  String? _selectedCategory;
   int? _selectedExerciseTypeId;
-  Map<String, dynamic>? get _selectedExerciseType =>
-      widget.exerciseTypes.firstWhere(
-        (e) => e['id'] == _selectedExerciseTypeId,
-        orElse: () => widget.exerciseTypes.first,
-      );
+  String? bodypartextension(String? part) {
+    switch (part) {
+      case 'chest':
+        return '가슴';
+      case 'back':
+        return '등';
+      case 'shoulders':
+        return '어깨';
+      case 'arms':
+        return '팔';
+      case 'legs':
+        return '다리';
+      case 'core':
+        return '코어';
+      case 'cardio':
+        return '유산소';
+    }
+    return part;
+  }
+
+  List<String> get _categories =>
+      widget.exerciseTypes.map((e) => e['body_part'] as String? ?? '기타')
+          .map((part) => bodypartextension(part) ?? part)
+          .toSet()
+          .toList();
+
+  List<Map<String, dynamic>> get _filteredExerciseTypes =>
+      widget.exerciseTypes.where((e) => 
+          bodypartextension(e['body_part'] as String?) == _selectedCategory ||
+          e['body_part'] == _selectedCategory)
+      .toList();
+
+  Map<String, dynamic>? get _selectedExerciseType => _filteredExerciseTypes.isNotEmpty
+      ? _filteredExerciseTypes.firstWhere(
+          (e) => e['id'] == _selectedExerciseTypeId,
+          orElse: () => _filteredExerciseTypes.first,
+        )
+      : null;
 
   @override
   Widget build(BuildContext context) {
@@ -360,13 +393,35 @@ class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                decoration: const InputDecoration(
+                  labelText: '운동 부위',
+                  border: OutlineInputBorder(),
+                ),
+                items: _categories.map((cat) => DropdownMenuItem(
+                  value: cat,
+                  child: Text(cat),
+                )).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCategory = value;
+                    _selectedExerciseTypeId = null;
+                  });
+                },
+                validator: (value) {
+                  if (value == null) return '운동 부위를 선택해주세요';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
               DropdownButtonFormField<int>(
                 value: _selectedExerciseTypeId,
                 decoration: const InputDecoration(
                   labelText: '운동 선택',
                   border: OutlineInputBorder(),
                 ),
-                items: widget.exerciseTypes.map((exercise) {
+                items: _filteredExerciseTypes.map((exercise) {
                   return DropdownMenuItem(
                     value: exercise['id'] as int,
                     child: Text(exercise['name'] as String),
@@ -378,14 +433,11 @@ class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
                   });
                 },
                 validator: (value) {
-                  if (value == null) {
-                    return '운동을 선택해주세요';
-                  }
+                  if (value == null) return '운동을 선택해주세요';
                   return null;
                 },
               ),
               const SizedBox(height: 16),
-
               if (_selectedExerciseType?['counting_method'] == 'reps') ...[
                 if (_selectedExerciseType?['weight_type'] == 'weighted')
                   TextFormField(
@@ -413,16 +465,31 @@ class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
                   },
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: _setsController,
-                  decoration: const InputDecoration(
-                    labelText: '세트 수',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('세트 수', style: TextStyle(fontSize: 16)),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.remove),
+                      onPressed: () {
+                        setState(() {
+                          if (_sets > 1) _sets--;
+                        });
+                      },
+                    ),
+                    Text(_sets.toString(), style: TextStyle(fontSize: 16)),
+                    IconButton(
+                      icon: Icon(Icons.add),
+                      onPressed: () {
+                        setState(() {
+                          _sets++;
+                        });
+                      },
+                    ),
+                  ],
                 ),
-              ] else if (_selectedExerciseType?['counting_method'] ==
-                  'time') ...[
+              ] else if (_selectedExerciseType?['counting_method'] == 'time') ...[
                 TextFormField(
                   controller: _durationController,
                   decoration: const InputDecoration(
@@ -438,7 +505,6 @@ class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
                   },
                 ),
               ],
-
               const SizedBox(height: 16),
               TextFormField(
                 controller: _notesController,
@@ -464,25 +530,15 @@ class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
 
   void _saveRecord() {
     if (!_formKey.currentState!.validate()) return;
-
     final record = {
-      'exerciseTypeId': _selectedExerciseType!['id'] as int,
+      'exerciseTypeId': _selectedExerciseType?['id'] as int,
       'date': widget.selectedDate,
-      'weight': _weightController.text.isNotEmpty
-          ? double.parse(_weightController.text)
-          : null,
-      'reps': _repsController.text.isNotEmpty
-          ? int.parse(_repsController.text)
-          : null,
-      'duration': _durationController.text.isNotEmpty
-          ? int.parse(_durationController.text)
-          : null,
-      'sets': _setsController.text.isNotEmpty
-          ? int.parse(_setsController.text)
-          : null,
+      'weight': _weightController.text.isNotEmpty ? double.parse(_weightController.text) : null,
+      'reps': _repsController.text.isNotEmpty ? int.parse(_repsController.text) : null,
+      'duration': _durationController.text.isNotEmpty ? int.parse(_durationController.text) : null,
+      'sets': _sets,
       'notes': _notesController.text.isNotEmpty ? _notesController.text : null,
     };
-
     widget.onSave(record);
     Navigator.of(context).pop();
   }
@@ -492,7 +548,6 @@ class _AddExerciseRecordDialogState extends State<AddExerciseRecordDialog> {
     _weightController.dispose();
     _repsController.dispose();
     _durationController.dispose();
-    _setsController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -511,8 +566,7 @@ class EditExerciseRecordDialog extends StatefulWidget {
   });
 
   @override
-  State<EditExerciseRecordDialog> createState() =>
-      _EditExerciseRecordDialogState();
+  State<EditExerciseRecordDialog> createState() => _EditExerciseRecordDialogState();
 }
 
 class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
@@ -520,35 +574,29 @@ class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
   late final TextEditingController _weightController;
   late final TextEditingController _repsController;
   late final TextEditingController _durationController;
-  late final TextEditingController _setsController;
   late final TextEditingController _notesController;
+  int _sets = 1;
 
   int? _selectedExerciseTypeId;
-  Map<String, dynamic>? get _selectedExerciseType =>
-      widget.exerciseTypes.firstWhere(
-        (e) => e['id'] == _selectedExerciseTypeId,
-        orElse: () => widget.exerciseTypes.first,
-      );
+  Map<String, dynamic>? get _selectedExerciseType => widget.exerciseTypes.firstWhere(
+    (e) => e['id'] == _selectedExerciseTypeId,
+    orElse: () => widget.exerciseTypes.first,
+  );
 
   @override
   void initState() {
     super.initState();
-
-    // 기존 데이터로 컨트롤러 초기화
     final weight = widget.record['weight'] as double?;
     final reps = widget.record['reps'] as int?;
     final duration = widget.record['duration'] as int?;
     final sets = widget.record['sets'] as int?;
     final notes = widget.record['notes'] as String?;
     _selectedExerciseTypeId = widget.record['exercise_type_id'] as int;
-
     _weightController = TextEditingController(text: weight?.toString() ?? '');
     _repsController = TextEditingController(text: reps?.toString() ?? '');
-    _durationController = TextEditingController(
-      text: duration?.toString() ?? '',
-    );
-    _setsController = TextEditingController(text: sets?.toString() ?? '1');
+    _durationController = TextEditingController(text: duration?.toString() ?? '');
     _notesController = TextEditingController(text: notes ?? '');
+    _sets = sets ?? 1;
   }
 
   @override
@@ -579,14 +627,11 @@ class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
                   });
                 },
                 validator: (value) {
-                  if (value == null) {
-                    return '운동을 선택해주세요';
-                  }
+                  if (value == null) return '운동을 선택해주세요';
                   return null;
                 },
               ),
               const SizedBox(height: 16),
-
               if (_selectedExerciseType?['counting_method'] == 'reps') ...[
                 if (_selectedExerciseType?['weight_type'] == 'weighted')
                   TextFormField(
@@ -614,16 +659,31 @@ class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
                   },
                 ),
                 const SizedBox(height: 16),
-                TextFormField(
-                  controller: _setsController,
-                  decoration: const InputDecoration(
-                    labelText: '세트 수',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('세트 수', style: TextStyle(fontSize: 16)),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.remove),
+                      onPressed: () {
+                        setState(() {
+                          if (_sets > 1) _sets--;
+                        });
+                      },
+                    ),
+                    Text(_sets.toString(), style: TextStyle(fontSize: 16)),
+                    IconButton(
+                      icon: Icon(Icons.add),
+                      onPressed: () {
+                        setState(() {
+                          _sets++;
+                        });
+                      },
+                    ),
+                  ],
                 ),
-              ] else if (_selectedExerciseType?['counting_method'] ==
-                  'time') ...[
+              ] else if (_selectedExerciseType?['counting_method'] == 'time') ...[
                 TextFormField(
                   controller: _durationController,
                   decoration: const InputDecoration(
@@ -639,7 +699,6 @@ class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
                   },
                 ),
               ],
-
               const SizedBox(height: 16),
               TextFormField(
                 controller: _notesController,
@@ -665,28 +724,40 @@ class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
 
   void _saveRecord() {
     if (!_formKey.currentState!.validate()) return;
-
     final updatedRecord = {
       'id': widget.record['id'],
       'exercise_type_id': _selectedExerciseTypeId,
       'date': widget.record['date'],
-      'weight': _weightController.text.isNotEmpty
-          ? double.parse(_weightController.text)
-          : null,
-      'reps': _repsController.text.isNotEmpty
-          ? int.parse(_repsController.text)
-          : null,
-      'duration': _durationController.text.isNotEmpty
-          ? int.parse(_durationController.text)
-          : null,
-      'sets': _setsController.text.isNotEmpty
-          ? int.parse(_setsController.text)
-          : null,
+      'weight': _weightController.text.isNotEmpty ? double.parse(_weightController.text) : null,
+      'reps': _repsController.text.isNotEmpty ? int.parse(_repsController.text) : null,
+      'duration': _durationController.text.isNotEmpty ? int.parse(_durationController.text) : null,
+      'sets': _sets,
       'notes': _notesController.text.isNotEmpty ? _notesController.text : null,
     };
-
     widget.onSave(updatedRecord);
     Navigator.of(context).pop();
+  }
+
+  String? bodypartextension(String? part)
+  {
+    switch (part)
+    {
+      case 'chest':
+        return '가슴';
+      case 'back':
+        return '등';
+      case 'shoulders':
+        return '어깨';
+      case 'arms':
+        return '팔';
+      case 'legs':
+        return '다리';
+      case 'core':
+        return '코어';
+      case 'cardio':
+        return '유산소';
+    }
+    return null;
   }
 
   @override
@@ -694,7 +765,6 @@ class _EditExerciseRecordDialogState extends State<EditExerciseRecordDialog> {
     _weightController.dispose();
     _repsController.dispose();
     _durationController.dispose();
-    _setsController.dispose();
     _notesController.dispose();
     super.dispose();
   }
