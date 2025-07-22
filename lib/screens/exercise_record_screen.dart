@@ -20,6 +20,26 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
   final DateFormat _dateFormat = DateFormat('yyyy년 MM월 dd일');
   Set<DateTime> _recordedDates = {};
 
+  String? _bodypartextension(String? part) {
+    switch (part) {
+      case 'chest':
+        return '가슴';
+      case 'back':
+        return '등';
+      case 'shoulders':
+        return '어깨';
+      case 'arms':
+        return '팔';
+      case 'legs':
+        return '다리';
+      case 'core':
+        return '코어';
+      case 'cardio':
+        return '유산소';
+    }
+    return part;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -101,6 +121,98 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
                   ),
                 ),
               ),
+            ),
+
+            // 운동 요약 정보
+            exerciseRecordsAsync.when(
+              data: (records) {
+                if (records.isEmpty) return const SizedBox();
+
+                // 부위별 운동 요약 데이터 계산
+                Map<String, Map<String, dynamic>> summaryByBodyPart = {};
+                
+                for (var record in records) {
+                  final bodyPart = record['body_part'] as String? ?? '기타';
+                  final koreanBodyPart = _bodypartextension(bodyPart) ?? bodyPart;
+                  final weight = record['weight'] as double?;
+                  final reps = record['reps'] as int?;
+                  final sets = record['sets'] as int? ?? 1;
+                  final duration = record['duration'] as int?;
+                  
+                  if (!summaryByBodyPart.containsKey(koreanBodyPart)) {
+                    summaryByBodyPart[koreanBodyPart] = {
+                      'count': 0,
+                      'totalWeight': 0.0,
+                      'totalDuration': 0,
+                    };
+                  }
+                  
+                  summaryByBodyPart[koreanBodyPart]?['count'] = 
+                      (summaryByBodyPart[koreanBodyPart]?['count'] ?? 0) + 1;
+                  
+                  if (weight != null) {
+                    summaryByBodyPart[koreanBodyPart]?['totalWeight'] = 
+                        (summaryByBodyPart[koreanBodyPart]?['totalWeight'] ?? 0.0) + (weight * (reps ?? 1) * sets);
+                  }
+                  
+                  if (duration != null) {
+                    summaryByBodyPart[koreanBodyPart]?['totalDuration'] = 
+                        (summaryByBodyPart[koreanBodyPart]?['totalDuration'] ?? 0) + duration;
+                  }
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '오늘의 운동 요약',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: summaryByBodyPart.entries.map((entry) {
+                          final totalWeight = entry.value['totalWeight'] as double;
+                          final totalDuration = entry.value['totalDuration'] as int;
+                          final count = entry.value['count'] as int;
+                          
+                          return Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  entry.key,
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                if (totalWeight > 0)
+                                  Text('총 무게: ${totalWeight.toStringAsFixed(1)}kg'),
+                                if (totalDuration > 0)
+                                  Text('총 시간: ${totalDuration ~/ 60}분 ${totalDuration % 60}초'),
+                                Text('운동 수: ${count}개'),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(),
+                    ],
+                  ),
+                );
+              },
+              loading: () => const SizedBox(),
+              error: (_, __) => const SizedBox(),
             ),
 
             // 운동 기록 목록

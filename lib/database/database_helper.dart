@@ -160,7 +160,12 @@ class DatabaseHelper {
     final db = await database;
     final dateStr = date.toIso8601String().split('T')[0];
     return await db.rawQuery('''
-      SELECT er.*, et.name as exercise_name, et.category, et.counting_method
+      SELECT er.*, 
+      et.name as exercise_name, 
+      et.category, 
+      et.counting_method,
+      et.weight_type,
+      et.body_part
       FROM exercise_records er
       JOIN exercise_types et ON er.exercise_type_id = et.id
       WHERE DATE(er.date) = ?
