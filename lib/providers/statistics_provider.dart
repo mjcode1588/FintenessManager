@@ -12,11 +12,13 @@ final weeklyStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final totalVolume = await database.getTotalVolumeByDateRange(weekStart, weekEnd);
   final workoutDays = await database.getWorkoutDaysByDateRange(weekStart, weekEnd);
   final bodyPartFrequency = await database.getExerciseFrequencyByBodyPart(weekStart, weekEnd);
+  final totalDuration = await database.getTotalWorkoutDuration(weekStart, weekEnd);
 
   return {
     'totalVolume': totalVolume,
     'workoutDays': workoutDays,
     'bodyPartFrequency': bodyPartFrequency,
+    'totalDuration': totalDuration,
   };
 });
 
@@ -30,12 +32,33 @@ final monthlyStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final totalVolume = await database.getTotalVolumeByDateRange(monthStart, monthEnd);
   final workoutDays = await database.getWorkoutDaysByDateRange(monthStart, monthEnd);
   final bodyPartFrequency = await database.getExerciseFrequencyByBodyPart(monthStart, monthEnd);
+  final bodyPartVolume = await database.getVolumeByBodyPart(monthStart, monthEnd);
+  final top5Exercises = await database.getTopExercises(monthStart, monthEnd);
 
   return {
     'totalVolume': totalVolume,
     'workoutDays': workoutDays,
     'bodyPartFrequency': bodyPartFrequency,
+    'bodyPartVolume': bodyPartVolume,
+    'top5Exercises': top5Exercises,
   };
+});
+
+// 월간 볼륨 추이 프로바이더
+final monthlyVolumeTrendProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final database = ref.watch(databaseProvider);
+  final now = DateTime.now();
+  // 최근 3개월 데이터 조회
+  final monthStart = DateTime(now.year, now.month - 2, 1);
+  final monthEnd = DateTime(now.year, now.month + 1, 0);
+  return await database.getWeeklyVolumeTrend(monthStart, monthEnd);
+});
+
+
+// 1RM 추정치 프로바이더
+final oneRMEstimatesProvider = FutureProvider<Map<String, double>>((ref) async {
+  final database = ref.watch(databaseProvider);
+  return await database.get1RMEstimates();
 });
 
 // 최근 몸무게 평균 프로바이더

@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../providers/weight_provider.dart';
-import '../providers/database_provider.dart';
 import '../providers/statistics_provider.dart';
 
 class StatisticsScreen extends ConsumerStatefulWidget {
@@ -71,6 +70,7 @@ class DashboardTab extends ConsumerWidget {
     final weeklyStatsAsync = ref.watch(weeklyStatsProvider);
     final monthlyStatsAsync = ref.watch(monthlyStatsProvider);
     final recentWeightAsync = ref.watch(recentWeightAverageProvider);
+    final oneRMEstimatesAsync = ref.watch(oneRMEstimatesProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -87,6 +87,9 @@ class DashboardTab extends ConsumerWidget {
             data: (weeklyStats) {
               final totalVolume = weeklyStats['totalVolume'] as double;
               final workoutDays = weeklyStats['workoutDays'] as int;
+              final totalDuration = weeklyStats['totalDuration'] as int; // 초 단위
+              final durationHours = totalDuration ~/ 3600;
+              final durationMinutes = (totalDuration % 3600) ~/ 60;
 
               return Column(
                 children: [
@@ -95,7 +98,7 @@ class DashboardTab extends ConsumerWidget {
                       Expanded(
                         child: _buildStatCard(
                           '총 운동 시간',
-                          '계산 중',
+                          '${durationHours}시간 ${durationMinutes}분',
                           Icons.timer,
                           Colors.blue,
                         ),
@@ -153,103 +156,48 @@ class DashboardTab extends ConsumerWidget {
                 ],
               );
             },
-            loading: () => Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStatCard(
-                        '총 운동 시간',
-                        '로딩 중...',
-                        Icons.timer,
-                        Colors.blue,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildStatCard(
-                        '총 볼륨',
-                        '로딩 중...',
-                        Icons.fitness_center,
-                        Colors.green,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStatCard(
-                        '운동 일수',
-                        '로딩 중...',
-                        Icons.calendar_today,
-                        Colors.orange,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildStatCard(
-                        '평균 몸무게',
-                        '로딩 중...',
-                        Icons.monitor_weight,
-                        Colors.purple,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            error: (error, stack) => Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStatCard(
-                        '총 운동 시간',
-                        '오류',
-                        Icons.timer,
-                        Colors.blue,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildStatCard(
-                        '총 볼륨',
-                        '오류',
-                        Icons.fitness_center,
-                        Colors.green,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStatCard(
-                        '운동 일수',
-                        '오류',
-                        Icons.calendar_today,
-                        Colors.orange,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildStatCard(
-                        '평균 몸무게',
-                        '오류',
-                        Icons.monitor_weight,
-                        Colors.purple,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, stack) => Text('주간 요약 오류: $error'),
           ),
 
           const SizedBox(height: 32),
+
+          // 1RM 추정치
+          oneRMEstimatesAsync.when(
+            data: (estimates) {
+              if (estimates.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '개인 최고 기록 (1RM 추정)',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: estimates.entries.map((entry) {
+                          return Column(
+                            children: [
+                              Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 4),
+                              Text('${entry.value.toStringAsFixed(1)} kg'),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                ],
+              );
+            },
+            loading: () => const SizedBox.shrink(), // 로딩 중에는 표시 안함
+            error: (e, s) => const SizedBox.shrink(), // 오류 시 표시 안함
+          ),
 
           const Text(
             '이번 달 목표',
@@ -262,7 +210,6 @@ class DashboardTab extends ConsumerWidget {
               final totalVolume = monthlyStats['totalVolume'] as double;
               final workoutDays = monthlyStats['workoutDays'] as int;
 
-              // 목표 설정
               const targetWorkoutDays = 20;
               const targetVolume = 10000.0;
 
@@ -274,92 +221,23 @@ class DashboardTab extends ConsumerWidget {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('운동 일수'),
-                          Text('$workoutDays / $targetWorkoutDays일'),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(
-                        value: workoutProgress.clamp(0.0, 1.0),
-                        backgroundColor: Colors.grey[300],
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          workoutProgress >= 1.0 ? Colors.green : Colors.orange,
-                        ),
-                      ),
+                      _buildProgressRow('운동 일수', '$workoutDays / $targetWorkoutDays일', workoutProgress, Colors.orange),
                       const SizedBox(height: 16),
-
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('총 볼륨'),
-                          Text(
-                            '${totalVolume.toStringAsFixed(0)} / ${targetVolume.toStringAsFixed(0)}kg',
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(
-                        value: volumeProgress.clamp(0.0, 1.0),
-                        backgroundColor: Colors.grey[300],
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          volumeProgress >= 1.0 ? Colors.green : Colors.blue,
-                        ),
-                      ),
+                      _buildProgressRow('총 볼륨', '${totalVolume.toStringAsFixed(0)} / ${targetVolume.toStringAsFixed(0)}kg', volumeProgress, Colors.blue),
                     ],
                   ),
                 ),
               );
             },
-            loading: () => Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [const Text('운동 일수'), Text('로딩 중...')],
-                    ),
-                    const SizedBox(height: 8),
-                    LinearProgressIndicator(
-                      value: 0.0,
-                      backgroundColor: Colors.grey[300],
-                    ),
-                    const SizedBox(height: 16),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [const Text('총 볼륨'), Text('로딩 중...')],
-                    ),
-                    const SizedBox(height: 8),
-                    LinearProgressIndicator(
-                      value: 0.0,
-                      backgroundColor: Colors.grey[300],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            error: (error, stack) => Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text('오류가 발생했습니다: $error'),
-              ),
-            ),
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, stack) => Text('월간 목표 오류: $error'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
+  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
     return Card(
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -377,20 +255,32 @@ class DashboardTab extends ConsumerWidget {
             const SizedBox(height: 8),
             Text(
               value,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 12, color: Colors.white70),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
               textAlign: TextAlign.center,
             ),
+            Text(title, style: const TextStyle(fontSize: 12, color: Colors.white70)),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildProgressRow(String title, String value, double progress, Color color) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [Text(title), Text(value)],
+        ),
+        const SizedBox(height: 8),
+        LinearProgressIndicator(
+          value: progress.clamp(0.0, 1.0),
+          backgroundColor: Colors.grey[300],
+          valueColor: AlwaysStoppedAnimation<Color>(
+            progress >= 1.0 ? Colors.green : color,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -421,88 +311,44 @@ class WeightChartTab extends ConsumerWidget {
           );
         }
 
-        // 차트 데이터 준비
         final chartData = records.map((record) {
+          final date = DateTime.parse(record['date'] as String);
           final weight = record['weight'] as double;
-          final dateStr = record['date'] as String;
-          final date = DateTime.parse(dateStr);
           return FlSpot(date.millisecondsSinceEpoch.toDouble(), weight);
         }).toList();
-
         chartData.sort((a, b) => a.x.compareTo(b.x));
 
-        // 통계 계산
         final weights = records.map((r) => r['weight'] as double).toList();
         final latestWeight = weights.first;
         final maxWeight = weights.reduce((a, b) => a > b ? a : b);
         final minWeight = weights.reduce((a, b) => a < b ? a : b);
-        final avgWeight = weights.isNotEmpty
-            ? weights.reduce((a, b) => a + b) / weights.length
-            : 0.0;
-        final minY = (avgWeight - 30).clamp(0, double.infinity).toDouble();
-        final maxY = (avgWeight + 30).toDouble();
+        final avgWeight = weights.reduce((a, b) => a + b) / weights.length;
+        final minY = (avgWeight - 20).clamp(0, double.infinity).toDouble();
+        final maxY = (avgWeight + 20).toDouble();
 
         return Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                '몸무게 변화 추이',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
+              const Text('몸무게 변화 추이', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-
               Expanded(
                 child: Card(
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
                     child: LineChart(
                       LineChartData(
                         gridData: FlGridData(show: true),
                         titlesData: FlTitlesData(
-                          leftTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              reservedSize: 40,
-                              getTitlesWidget: (value, meta) {
-                                return Text(
-                                  '${value.toInt()}kg',
-                                  style: const TextStyle(fontSize: 12),
-                                );
-                              },
-                            ),
-                          ),
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              reservedSize: 30,
-                              getTitlesWidget: (value, meta) {
-                                final date =
-                                    DateTime.fromMillisecondsSinceEpoch(
-                                      value.toInt(),
-                                    );
-                                return Text(
-                                  DateFormat('MM/dd').format(date),
-                                  style: const TextStyle(fontSize: 10),
-                                );
-                              },
-                            ),
-                          ),
-                          topTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          rightTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
+                          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, getTitlesWidget: (v, m) => Text('${v.toInt()}kg', style: const TextStyle(fontSize: 12)))),
+                          bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (v, m) => Text(DateFormat('MM/dd').format(DateTime.fromMillisecondsSinceEpoch(v.toInt())), style: const TextStyle(fontSize: 10)))),
+                          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                         ),
                         borderData: FlBorderData(show: true),
-                        minY: minY,
-                        maxY: maxY,
-                        lineTouchData: LineTouchData(
-                          enabled: true,
-                          handleBuiltInTouches: true,
-                        ),
+                        minY: minY, maxY: maxY,
+                        lineTouchData: LineTouchData(enabled: true, handleBuiltInTouches: true),
                         clipData: FlClipData.all(),
                         lineBarsData: [
                           LineChartBarData(
@@ -511,10 +357,7 @@ class WeightChartTab extends ConsumerWidget {
                             color: Colors.blue,
                             barWidth: 3,
                             dotData: FlDotData(show: true),
-                            belowBarData: BarAreaData(
-                              show: true,
-                              color: Colors.blue.withOpacity(0.1),
-                            ),
+                            belowBarData: BarAreaData(show: true, color: Colors.blue.withOpacity(0.1)),
                           ),
                         ],
                       ),
@@ -523,36 +366,16 @@ class WeightChartTab extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // 통계 정보
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('최근 몸무게'),
-                          Text('${latestWeight.toStringAsFixed(1)}kg'),
-                        ],
-                      ),
+                      _buildInfoRow('최근 몸무게', '${latestWeight.toStringAsFixed(1)}kg'),
                       const Divider(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('최고 몸무게'),
-                          Text('${maxWeight.toStringAsFixed(1)}kg'),
-                        ],
-                      ),
+                      _buildInfoRow('최고 몸무게', '${maxWeight.toStringAsFixed(1)}kg'),
                       const Divider(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('최저 몸무게'),
-                          Text('${minWeight.toStringAsFixed(1)}kg'),
-                        ],
-                      ),
+                      _buildInfoRow('최저 몸무게', '${minWeight.toStringAsFixed(1)}kg'),
                     ],
                   ),
                 ),
@@ -565,6 +388,13 @@ class WeightChartTab extends ConsumerWidget {
       error: (error, stack) => Center(child: Text('오류가 발생했습니다: $error')),
     );
   }
+
+  Widget _buildInfoRow(String title, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [Text(title), Text(value)],
+    );
+  }
 }
 
 class ExerciseAnalysisTab extends ConsumerWidget {
@@ -572,139 +402,50 @@ class ExerciseAnalysisTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final weeklyStatsAsync = ref.watch(weeklyStatsProvider);
     final monthlyStatsAsync = ref.watch(monthlyStatsProvider);
+    final monthlyVolumeTrendAsync = ref.watch(monthlyVolumeTrendProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '운동 분석',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
+          const Text('월간 운동 분석', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
 
-          // 이번 주 부위별 운동 빈도
+          // 월간 부위별 볼륨 (파이차트)
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '이번 주 부위별 운동 빈도',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  const Text('부위별 볼륨 비율', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
-                  weeklyStatsAsync.when(
-                    data: (weeklyStats) {
-                      final bodyPartFrequency =
-                          weeklyStats['bodyPartFrequency'] as Map<String, int>;
+                  monthlyStatsAsync.when(
+                    data: (stats) {
+                      final bodyPartVolume = stats['bodyPartVolume'] as Map<String, double>;
+                      if (bodyPartVolume.isEmpty) return const Text('이번 달 운동 기록이 없습니다.');
 
-                      if (bodyPartFrequency.isEmpty) {
-                        return const Text(
-                          '이번 주 운동 기록이 없습니다.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
+                      final totalVolume = bodyPartVolume.values.reduce((a, b) => a + b);
+                      final pieChartSections = bodyPartVolume.entries.map((entry) {
+                        final percentage = (entry.value / totalVolume) * 100;
+                        return PieChartSectionData(
+                          color: _getBodyPartColor(entry.key),
+                          value: entry.value,
+                          title: '${percentage.toStringAsFixed(1)}%',
+                          radius: 80,
+                          titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                         );
-                      }
+                      }).toList();
 
                       return SizedBox(
                         height: 200,
-                        child: BarChart(
-                          BarChartData(
-                            alignment: BarChartAlignment.spaceAround,
-                            maxY:
-                                bodyPartFrequency.values
-                                    .reduce((a, b) => a > b ? a : b)
-                                    .toDouble() +
-                                2,
-                            barTouchData: BarTouchData(enabled: false),
-                            titlesData: FlTitlesData(
-                              show: true,
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  getTitlesWidget:
-                                      (double value, TitleMeta meta) {
-                                        final bodyParts = bodyPartFrequency.keys
-                                            .toList();
-                                        if (value.toInt() < bodyParts.length) {
-                                          return Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 8.0,
-                                            ),
-                                            child: Text(
-                                              _getBodyPartName(
-                                                bodyParts[value.toInt()],
-                                              ),
-                                              style: const TextStyle(
-                                                fontSize: 10,
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                        return const Text('');
-                                      },
-                                ),
-                              ),
-                              leftTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  reservedSize: 30,
-                                  getTitlesWidget:
-                                      (double value, TitleMeta meta) {
-                                        return Text(
-                                          value.toInt().toString(),
-                                          style: const TextStyle(fontSize: 10),
-                                        );
-                                      },
-                                ),
-                              ),
-                              topTitles: AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                              rightTitles: AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                            ),
-                            borderData: FlBorderData(show: false),
-                            barGroups: bodyPartFrequency.entries
-                                .toList()
-                                .asMap()
-                                .entries
-                                .map((entry) {
-                                  final index = entry.key;
-                                  final bodyPartEntry = entry.value;
-                                  return BarChartGroupData(
-                                    x: index,
-                                    barRods: [
-                                      BarChartRodData(
-                                        toY: bodyPartEntry.value.toDouble(),
-                                        color: _getBodyPartColor(
-                                          bodyPartEntry.key,
-                                        ),
-                                        width: 20,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                    ],
-                                  );
-                                })
-                                .toList(),
-                          ),
-                        ),
+                        child: PieChart(PieChartData(sections: pieChartSections, centerSpaceRadius: 40)),
                       );
                     },
-                    loading: () => const SizedBox(
-                      height: 200,
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
-                    error: (error, stack) => SizedBox(
-                      height: 200,
-                      child: Center(child: Text('오류가 발생했습니다: $error')),
-                    ),
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (e, s) => Text('오류: $e'),
                   ),
                 ],
               ),
@@ -712,71 +453,84 @@ class ExerciseAnalysisTab extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // 이번 달 부위별 운동 빈도
+          // 월간 볼륨 추이 (라인차트)
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '이번 달 부위별 운동 빈도',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  const Text('주간 총 볼륨 추이', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  monthlyVolumeTrendAsync.when(
+                    data: (trendData) {
+                      if (trendData.isEmpty) return const Text('볼륨 추이 데이터가 없습니다.');
+
+                      final spots = trendData.asMap().entries.map((entry) {
+                        final index = entry.key.toDouble();
+                        final volume = (entry.value['total_volume'] as num).toDouble();
+                        return FlSpot(index, volume);
+                      }).toList();
+
+                      return SizedBox(
+                        height: 200,
+                        child: LineChart(
+                          LineChartData(
+                            gridData: FlGridData(show: false),
+                            titlesData: FlTitlesData(
+                              leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  getTitlesWidget: (value, meta) {
+                                    final week = trendData[value.toInt()]['week'] as String;
+                                    return Text(week.substring(5), style: const TextStyle(fontSize: 10)); // 'YYYY-WW' -> 'WW'
+                                  },
+                                ),
+                              ),
+                              topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                              rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            ),
+                            borderData: FlBorderData(show: true),
+                            lineBarsData: [LineChartBarData(spots: spots, isCurved: true, color: Colors.teal, barWidth: 3)],
+                          ),
+                        ),
+                      );
+                    },
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (e, s) => Text('오류: $e'),
                   ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 가장 많이 한 운동 Top 5
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('가장 많이 한 운동 Top 5', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   monthlyStatsAsync.when(
-                    data: (monthlyStats) {
-                      final bodyPartFrequency =
-                          monthlyStats['bodyPartFrequency'] as Map<String, int>;
+                    data: (stats) {
+                      final topExercises = stats['top5Exercises'] as List<Map<String, dynamic>>;
+                      if (topExercises.isEmpty) return const Text('운동 기록이 없습니다.');
 
-                      if (bodyPartFrequency.isEmpty) {
-                        return const Text(
-                          '이번 달 운동 기록이 없습니다.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
-                        );
-                      }
-
-                      // 리스트 형태로 표시
                       return Column(
-                        children: bodyPartFrequency.entries.map((entry) {
-                          final bodyPart = entry.key;
-                          final frequency = entry.value;
-                          final maxFrequency = bodyPartFrequency.values.reduce(
-                            (a, b) => a > b ? a : b,
-                          );
-                          final progress = frequency / maxFrequency;
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12.0),
-                            child: Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(_getBodyPartName(bodyPart)),
-                                    Text('${frequency}회'),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                LinearProgressIndicator(
-                                  value: progress,
-                                  backgroundColor: Colors.grey[300],
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    _getBodyPartColor(bodyPart),
-                                  ),
-                                ),
-                              ],
-                            ),
+                        children: topExercises.map((exercise) {
+                          return ListTile(
+                            title: Text(exercise['name'] as String),
+                            trailing: Text('${exercise['count']} 회'),
                           );
                         }).toList(),
                       );
                     },
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (error, stack) =>
-                        Center(child: Text('오류가 발생했습니다: $error')),
+                    loading: () => const Center(child: CircularProgressIndicator()),
+                    error: (e, s) => Text('오류: $e'),
                   ),
                 ],
               ),
@@ -789,43 +543,27 @@ class ExerciseAnalysisTab extends ConsumerWidget {
 
   String _getBodyPartName(String bodyPart) {
     switch (bodyPart) {
-      case 'chest':
-        return '가슴';
-      case 'back':
-        return '등';
-      case 'shoulders':
-        return '어깨';
-      case 'arms':
-        return '팔';
-      case 'legs':
-        return '다리';
-      case 'core':
-        return '코어';
-      case 'cardio':
-        return '유산소';
-      default:
-        return bodyPart;
+      case 'chest': return '가슴';
+      case 'back': return '등';
+      case 'shoulders': return '어깨';
+      case 'arms': return '팔';
+      case 'legs': return '다리';
+      case 'core': return '코어';
+      case 'cardio': return '유산소';
+      default: return bodyPart;
     }
   }
 
   Color _getBodyPartColor(String bodyPart) {
     switch (bodyPart) {
-      case 'chest':
-        return Colors.red;
-      case 'back':
-        return Colors.blue;
-      case 'shoulders':
-        return Colors.orange;
-      case 'arms':
-        return Colors.green;
-      case 'legs':
-        return Colors.purple;
-      case 'core':
-        return Colors.teal;
-      case 'cardio':
-        return Colors.pink;
-      default:
-        return Colors.grey;
+      case 'chest': return Colors.red;
+      case 'back': return Colors.blue;
+      case 'shoulders': return Colors.orange;
+      case 'arms': return Colors.green;
+      case 'legs': return Colors.purple;
+      case 'core': return Colors.teal;
+      case 'cardio': return Colors.pink;
+      default: return Colors.grey;
     }
   }
 }

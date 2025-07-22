@@ -282,7 +282,7 @@ class DatabaseHelper {
     return (result.first['workout_days'] as int?) ?? 0;
   }
 
-  Future<Map<String, int>> getExerciseFrequencyByBodyPart(DateTime start, DateTime end) async {
+  """  Future<Map<String, int>> getExerciseFrequencyByBodyPart(DateTime start, DateTime end) async {
     final db = await database;
     final startStr = start.toIso8601String().split('T')[0];
     final endStr = end.toIso8601String().split('T')[0];
@@ -301,4 +301,105 @@ class DatabaseHelper {
     }
     return frequency;
   }
+
+  // 부위별 볼륨 조회
+  Future<Map<String, double>> getVolumeByBodyPart(DateTime start, DateTime end) async {
+    final db = await database;
+    final startStr = start.toIso8601String().split('T')[0];
+    final endStr = end.toIso8601String().split('T')[0];
+
+    final result = await db.rawQuery('''
+      SELECT et.body_part, SUM(er.weight * er.reps * er.sets) as total_volume
+      FROM exercise_records er
+      JOIN exercise_types et ON er.exercise_type_id = et.id
+      WHERE DATE(er.date) BETWEEN ? AND ?
+      AND er.weight IS NOT NULL AND er.reps IS NOT NULL AND er.sets IS NOT NULL
+      GROUP BY et.body_part
+    ''', [startStr, endStr]);
+
+    Map<String, double> volumeByPart = {};
+    for (final row in result) {
+      volumeByPart[row['body_part'] as String] = (row['total_volume'] as num?)?.toDouble() ?? 0.0;
+    }
+    return volumeByPart;
+  }
+
+  // 주간 볼륨 추이
+  Future<List<Map<String, dynamic>>> getWeeklyVolumeTrend(DateTime start, DateTime end) async {
+    final db = await database;
+    final startStr = start.toIso8601String().split('T')[0];
+    final endStr = end.toIso8601String().split('T')[0];
+
+    final result = await db.rawQuery('''
+      SELECT strftime('%Y-%W', date) as week, SUM(weight * reps * sets) as total_volume
+      FROM exercise_records
+      WHERE DATE(date) BETWEEN ? AND ?
+      AND weight IS NOT NULL AND reps IS NOT NULL AND sets IS NOT NULL
+      GROUP BY week
+      ORDER BY week
+    ''', [startStr, endStr]);
+
+    return result;
+  }
+
+    // 가장 많이 한 운동 Top N
+  Future<List<Map<String, dynamic>>> getTopExercises(DateTime start, DateTime end, {int limit = 5}) async {
+    final db = await database;
+    final startStr = start.toIso8601String().split('T')[0];
+    final endStr = end.toIso8601String().split('T')[0];
+
+    final result = await db.rawQuery('''
+      SELECT et.name, COUNT(er.id) as count
+      FROM exercise_records er
+      JOIN exercise_types et ON er.exercise_type_id = et.id
+      WHERE DATE(er.date) BETWEEN ? AND ?
+      GROUP BY et.name
+      ORDER BY count DESC
+      LIMIT ?
+    ''', [startStr, endStr, limit]);
+
+    return result;
+  }
+
+  // 1RM 추정치 계산 (주요 운동)
+  Future<Map<String, double>> get1RMEstimates() async {
+    final db = await database;
+    // Epley 공식 사용: 1RM = weight * (1 + reps / 30)
+    final result = await db.rawQuery('''
+      SELECT et.name, MAX(er.weight * (1 + er.reps / 30.0)) as estimated_1rm
+      FROM exercise_records er
+      JOIN exercise_types et ON er.exercise_type_id = et.id
+      WHERE et.name IN ('벤치 프레스', '스쿼트', '데드리프트') 
+      AND er.reps > 1 -- 1RM 추정은 1회 이상 반복에서 의미가 있음
+      GROUP BY et.name
+    ''');
+
+    Map<String, double> estimates = {};
+    for (final row in result) {
+      estimates[row['name'] as String] = (row['estimated_1rm'] as num?)?.toDouble() ?? 0.0;
+    }
+    return estimates;
+  }
+
+  // 총 운동 시간 계산
+  Future<int> getTotalWorkoutDuration(DateTime start, DateTime end) async {
+    final db = await database;
+    final startStr = start.toIso8601String().split('T')[0];
+    final endStr = end.toIso8601String().split('T')[0];
+
+    // 각 날짜별로 운동 기록의 첫 시간과 마지막 시간의 차이를 계산하여 합산
+    final result = await db.rawQuery('''
+      SELECT SUM(duration) as total_duration
+      FROM (
+        SELECT (strftime('%s', MAX(date)) - strftime('%s', MIN(date))) as duration
+        FROM exercise_records
+        WHERE DATE(date) BETWEEN ? AND ?
+        GROUP BY DATE(date)
+      )
+    ''', [startStr, endStr]);
+
+    return (result.first['total_duration'] as int?) ?? 0;
+  }
+}
+""
 }
