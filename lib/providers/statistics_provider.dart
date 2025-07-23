@@ -8,18 +8,8 @@ final weeklyStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final now = DateTime.now();
   final weekStart = now.subtract(Duration(days: now.weekday - 1));
   final weekEnd = weekStart.add(const Duration(days: 6));
-
-  final totalVolume = await database.getTotalVolumeByDateRange(weekStart, weekEnd);
-  final workoutDays = await database.getWorkoutDaysByDateRange(weekStart, weekEnd);
-  final bodyPartFrequency = await database.getExerciseFrequencyByBodyPart(weekStart, weekEnd);
-  final totalDuration = await database.getTotalWorkoutDuration(weekStart, weekEnd);
-
-  return {
-    'totalVolume': totalVolume,
-    'workoutDays': workoutDays,
-    'bodyPartFrequency': bodyPartFrequency,
-    'totalDuration': totalDuration,
-  };
+  
+  return await _getStatsForPeriod(database, weekStart, weekEnd);
 });
 
 // 월간 통계 프로바이더
@@ -28,57 +18,191 @@ final monthlyStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final now = DateTime.now();
   final monthStart = DateTime(now.year, now.month, 1);
   final monthEnd = DateTime(now.year, now.month + 1, 0);
-
-  final totalVolume = await database.getTotalVolumeByDateRange(monthStart, monthEnd);
-  final workoutDays = await database.getWorkoutDaysByDateRange(monthStart, monthEnd);
-  final bodyPartFrequency = await database.getExerciseFrequencyByBodyPart(monthStart, monthEnd);
-  final bodyPartVolume = await database.getVolumeByBodyPart(monthStart, monthEnd);
-  final top5Exercises = await database.getTopExercises(monthStart, monthEnd);
-
-  return {
-    'totalVolume': totalVolume,
-    'workoutDays': workoutDays,
-    'bodyPartFrequency': bodyPartFrequency,
-    'bodyPartVolume': bodyPartVolume,
-    'top5Exercises': top5Exercises,
-  };
-});
-
-// 월간 볼륨 추이 프로바이더
-final monthlyVolumeTrendProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final database = ref.watch(databaseProvider);
-  final now = DateTime.now();
-  // 최근 3개월 데이터 조회
-  final monthStart = DateTime(now.year, now.month - 2, 1);
-  final monthEnd = DateTime(now.year, now.month + 1, 0);
-  return await database.getWeeklyVolumeTrend(monthStart, monthEnd);
-});
-
-
-// 1RM 추정치 프로바이더
-final oneRMEstimatesProvider = FutureProvider<Map<String, double>>((ref) async {
-  final database = ref.watch(databaseProvider);
-  return await database.get1RMEstimates();
+  
+  return await _getStatsForPeriod(database, monthStart, monthEnd);
 });
 
 // 최근 몸무게 평균 프로바이더
 final recentWeightAverageProvider = FutureProvider<double?>((ref) async {
   final database = ref.watch(databaseProvider);
-  final now = DateTime.now();
-  final weekStart = now.subtract(const Duration(days: 7));
-
   final records = await database.getAllWeightRecords();
+  
+  if (records.isEmpty) return null;
+  
+  // 최근 7일간의 평균
+  final now = DateTime.now();
+  final weekAgo = now.subtract(const Duration(days: 7));
+  
   final recentRecords = records.where((record) {
     final date = DateTime.parse(record['date'] as String);
-    return date.isAfter(weekStart);
+    return date.isAfter(weekAgo);
   }).toList();
-
+  
   if (recentRecords.isEmpty) return null;
-
+  
   final totalWeight = recentRecords.fold<double>(
-    0.0,
+    0.0, 
     (sum, record) => sum + (record['weight'] as double),
   );
-
+  
   return totalWeight / recentRecords.length;
 });
+
+// 1RM 추정치 프로바이더
+final oneRMEstimatesProvider = FutureProvider<Map<String, double>>((ref) async {
+  final database = ref.watch(databaseProvider);
+  final db = await database.database;
+  
+  // 주요 운동들의 최고 기록을 가져와서 1RM 추정
+  final result = await db.rawQuery('''
+    SELECT et.name, MAX(er.weight * er.reps * 0.0333 + er.weight) as estimated_1rm
+    FROM exercise_records er
+    JOIN exercise_types et ON er.exercise_type_id = et.id
+    WHERE er.weight IS NOT NULL AND er.reps IS NOT NULL
+    AND et.name IN ('벤치프레스', '스쿼트', '데드리프트', '숄더프레스')
+    GROUP BY et.name
+    HAVING estimated_1rm > 0
+  ''');
+  
+  final estimates = <String, double>{};
+  for (final row in result) {
+    final name = row['name'] as String;
+    final estimate = (row['estimated_1rm'] as num).toDouble();
+    estimates[name] = estimate;
+  }
+  
+  return estimates;
+});
+
+// 월간 볼륨 추이 프로바이더
+final monthlyVolumeTrendProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final database = ref.watch(databaseProvider);
+  final db = await database.database;
+  
+  final result = await db.rawQuery('''
+    SELECT 
+      strftime('%Y-%W', date) as week,
+      SUM(weight * reps * sets) as total_volume
+    FROM exercise_records
+    WHERE weight IS NOT NULL AND reps IS NOT NULL AND sets IS NOT NULL
+    AND date >= date('now', '-12 weeks')
+    GROUP BY strftime('%Y-%W', date)
+    ORDER BY week
+  ''');
+  
+  return result.map((row) => {
+    'week': row['week'] as String,
+    'total_volume': (row['total_volume'] as num?)?.toDouble() ?? 0.0,
+  }).toList();
+});
+
+// 공통 통계 계산 함수
+Future<Map<String, dynamic>> _getStatsForPeriod(
+  DatabaseHelper database, 
+  DateTime start, 
+  DateTime end,
+) async {
+  final db = await database.database;
+  
+  // 총 볼륨 계산
+  final volumeResult = await db.rawQuery('''
+    SELECT SUM(weight * reps * sets) as total_volume
+    FROM exercise_records
+    WHERE DATE(date) BETWEEN ? AND ?
+    AND weight IS NOT NULL AND reps IS NOT NULL AND sets IS NOT NULL
+  ''', [start.toIso8601String().split('T')[0], end.toIso8601String().split('T')[0]]);
+  
+  final totalVolume = (volumeResult.first['total_volume'] as num?)?.toDouble() ?? 0.0;
+  
+  // 운동 일수 계산
+  final workoutDaysResult = await db.rawQuery('''
+    SELECT COUNT(DISTINCT DATE(date)) as workout_days
+    FROM exercise_records
+    WHERE DATE(date) BETWEEN ? AND ?
+  ''', [start.toIso8601String().split('T')[0], end.toIso8601String().split('T')[0]]);
+  
+  final workoutDays = (workoutDaysResult.first['workout_days'] as int?) ?? 0;
+  
+  // 총 운동 시간 계산 (duration이 있는 운동들)
+  final durationResult = await db.rawQuery('''
+    SELECT SUM(duration) as total_duration
+    FROM exercise_records
+    WHERE DATE(date) BETWEEN ? AND ?
+    AND duration IS NOT NULL
+  ''', [start.toIso8601String().split('T')[0], end.toIso8601String().split('T')[0]]);
+  
+  final totalDuration = (durationResult.first['total_duration'] as num?)?.toInt() ?? 0;
+  
+  // 총 세트 수 계산
+  final setsResult = await db.rawQuery('''
+    SELECT SUM(sets) as total_sets
+    FROM exercise_records
+    WHERE DATE(date) BETWEEN ? AND ?
+    AND sets IS NOT NULL
+  ''', [start.toIso8601String().split('T')[0], end.toIso8601String().split('T')[0]]);
+  
+  final totalSets = (setsResult.first['total_sets'] as num?)?.toInt() ?? 0;
+  
+  // 부위별 볼륨 계산
+  final bodyPartVolumeResult = await db.rawQuery('''
+    SELECT et.body_part, SUM(er.weight * er.reps * er.sets) as volume
+    FROM exercise_records er
+    JOIN exercise_types et ON er.exercise_type_id = et.id
+    WHERE DATE(er.date) BETWEEN ? AND ?
+    AND er.weight IS NOT NULL AND er.reps IS NOT NULL AND er.sets IS NOT NULL
+    GROUP BY et.body_part
+  ''', [start.toIso8601String().split('T')[0], end.toIso8601String().split('T')[0]]);
+  
+  final bodyPartVolume = <String, double>{};
+  for (final row in bodyPartVolumeResult) {
+    final bodyPart = row['body_part'] as String;
+    final volume = (row['volume'] as num?)?.toDouble() ?? 0.0;
+    bodyPartVolume[bodyPart] = volume;
+  }
+  
+  // 부위별 운동 빈도 계산
+  final bodyPartFrequencyResult = await db.rawQuery('''
+    SELECT et.body_part, COUNT(*) as frequency
+    FROM exercise_records er
+    JOIN exercise_types et ON er.exercise_type_id = et.id
+    WHERE DATE(er.date) BETWEEN ? AND ?
+    GROUP BY et.body_part
+  ''', [start.toIso8601String().split('T')[0], end.toIso8601String().split('T')[0]]);
+  
+  final bodyPartFrequency = <String, int>{};
+  for (final row in bodyPartFrequencyResult) {
+    final bodyPart = row['body_part'] as String;
+    final frequency = row['frequency'] as int;
+    bodyPartFrequency[bodyPart] = frequency;
+  }
+  
+  // 가장 많이 한 운동 Top 5
+  final topExercisesResult = await db.rawQuery('''
+    SELECT 
+      et.name, 
+      COUNT(*) as count,
+      SUM(er.weight * er.reps * er.sets) as total_volume
+    FROM exercise_records er
+    JOIN exercise_types et ON er.exercise_type_id = et.id
+    WHERE DATE(er.date) BETWEEN ? AND ?
+    GROUP BY et.name
+    ORDER BY count DESC
+    LIMIT 5
+  ''', [start.toIso8601String().split('T')[0], end.toIso8601String().split('T')[0]]);
+  
+  final top5Exercises = topExercisesResult.map((row) => {
+    'name': row['name'] as String,
+    'count': row['count'] as int,
+    'total_volume': (row['total_volume'] as num?)?.toDouble(),
+  }).toList();
+  
+  return {
+    'totalVolume': totalVolume,
+    'workoutDays': workoutDays,
+    'totalDuration': totalDuration,
+    'totalSets': totalSets,
+    'bodyPartVolume': bodyPartVolume,
+    'bodyPartFrequency': bodyPartFrequency,
+    'top5Exercises': top5Exercises,
+  };
+}
