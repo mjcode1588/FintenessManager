@@ -92,13 +92,7 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/add-exercise',
-      builder: (context, state) => WillPopScope(
-        onWillPop: () async {
-          context.go('/exercises');
-          return false;
-        },
-        child: const AddExerciseScreen(),
-      ),
+      builder: (context, state) => const AddExerciseScreen(),
     ),
     GoRoute(
       path: '/exercise-record',

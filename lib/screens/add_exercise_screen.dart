@@ -15,12 +15,12 @@ class AddExerciseScreen extends ConsumerStatefulWidget {
 class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  
+
   ExerciseCategory _selectedCategory = ExerciseCategory.weight;
   BodyPart _selectedBodyPart = BodyPart.chest;
   CountingMethod _selectedCountingMethod = CountingMethod.reps;
   WeightType _selectedWeightType = WeightType.weighted;
-  
+
   bool _isLoading = false;
 
   @override
@@ -41,8 +41,8 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
         title: const Text('운동 종류 추가'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         leading: IconButton(
-          icon: const Icon(Icons.home),
-          onPressed: () => context.go('/'),
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/exercises'),
         ),
       ),
       body: SingleChildScrollView(
@@ -57,13 +57,10 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
                 children: [
                   const Text(
                     '새 운동 추가',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
-                  
+
                   TextFormField(
                     controller: _nameController,
                     decoration: const InputDecoration(
@@ -78,7 +75,7 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  
+
                   DropdownButtonFormField<ExerciseCategory>(
                     value: _selectedCategory,
                     decoration: const InputDecoration(
@@ -102,7 +99,7 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  
+
                   if (_selectedCategory == ExerciseCategory.weight)
                     DropdownButtonFormField<WeightType>(
                       value: _selectedWeightType,
@@ -144,7 +141,7 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  
+
                   DropdownButtonFormField<CountingMethod>(
                     value: _selectedCountingMethod,
                     decoration: const InputDecoration(
@@ -164,7 +161,7 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
                     },
                   ),
                   const SizedBox(height: 24),
-                  
+
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -194,13 +191,15 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
 
     try {
       final database = ref.read(databaseProvider);
-      final existingExercise = await database.getExerciseTypeByName(exerciseName);
+      final existingExercise = await database.getExerciseTypeByName(
+        exerciseName,
+      );
 
       if (existingExercise != null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('이미 추가된 운동입니다.')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('이미 추가된 운동입니다.')));
         }
       } else {
         await database.insertExerciseType({
@@ -213,17 +212,17 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
 
         if (mounted) {
           ref.invalidate(exerciseTypesProvider);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('운동이 추가되었습니다')),
-          );
-          context.pop();
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('운동이 추가되었습니다')));
+          context.go('/exercises');
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('오류가 발생했습니다: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('오류가 발생했습니다: $e')));
       }
     } finally {
       if (mounted) {
