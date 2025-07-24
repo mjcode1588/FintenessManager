@@ -8,6 +8,7 @@ import '../providers/exercise_provider.dart';
 import '../providers/database_provider.dart';
 import '../providers/weight_provider.dart';
 import '../widgets/add_exercise_record_dialog.dart';
+import '../navigation/back_button_mixin.dart';
 import '../providers/weight_provider.dart';
 
 class ExerciseRecordScreen extends ConsumerStatefulWidget {
@@ -18,7 +19,8 @@ class ExerciseRecordScreen extends ConsumerStatefulWidget {
       _ExerciseRecordScreenState();
 }
 
-class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
+class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> 
+    with BackButtonMixin {
   DateTime _selectedDate = DateTime.now();
   final DateFormat _dateFormat = DateFormat('yyyy년 MM월 dd일');
   Set<DateTime> _recordedDates = {};
@@ -87,7 +89,8 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
       exerciseRecordsByDateProvider(_selectedDate),
     );
 
-    return Scaffold(
+    return buildWithBackButton(
+      child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -130,6 +133,7 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
           child: const Icon(Icons.add, color: Colors.white, size: 28),
         ),
       ),
+      ),
     );
   }
 
@@ -152,9 +156,22 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
                 ),
               ],
             ),
-            child: IconButton(
-              onPressed: () => context.go('/'),
-              icon: const Icon(Icons.home, color: Colors.white),
+            child: Consumer(
+              builder: (context, ref, _) {
+                return IconButton(
+                  onPressed: () async {
+                    if (!context.mounted) return;
+                    
+                    final navigationManager = ref.read(navigationManagerProvider);
+                    final result = await navigationManager.handleBackNavigation(context);
+                    
+                    if (context.mounted) {
+                      await navigationManager.executeNavigation(context, result);
+                    }
+                  },
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                );
+              },
             ),
           ),
           const SizedBox(width: 16),

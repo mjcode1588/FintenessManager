@@ -8,9 +8,13 @@ import '../models/weight_record.dart';
 import '../models/exercise_record.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../navigation/back_button_mixin.dart';
 
-class ExportScreen extends StatelessWidget {
-  final dbHelper = DatabaseHelper();
+class ExportScreen extends ConsumerWidget {
+  const ExportScreen({super.key});
+  
+  final dbHelper = const DatabaseHelper();
 
   Future<void> _exportData(BuildContext context) async {
     try {
@@ -218,8 +222,22 @@ class ExportScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Consumer(
+      builder: (context, ref, _) {
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, result) async {
+            if (didPop) return;
+            
+            final navigationManager = ref.read(navigationManagerProvider);
+            final navResult = await navigationManager.handleBackNavigation(context);
+            
+            if (context.mounted) {
+              await navigationManager.executeNavigation(context, navResult);
+            }
+          },
+          child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -264,8 +282,17 @@ class ExportScreen extends StatelessWidget {
               ],
             ),
             child: IconButton(
-              onPressed: () => context.go('/'),
-              icon: const Icon(Icons.home, color: Colors.white),
+              onPressed: () async {
+                if (!context.mounted) return;
+                
+                final navigationManager = ref.read(navigationManagerProvider);
+                final result = await navigationManager.handleBackNavigation(context);
+                
+                if (context.mounted) {
+                  await navigationManager.executeNavigation(context, result);
+                }
+              },
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
             ),
           ),
           const SizedBox(width: 16),
@@ -358,6 +385,9 @@ class ExportScreen extends StatelessWidget {
             ),
           ],
         ),
+        ),
       );
+    },
+    );
   }
 }

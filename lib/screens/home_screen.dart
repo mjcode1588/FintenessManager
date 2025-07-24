@@ -1,55 +1,119 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../navigation/back_button_mixin.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  DateTime? _lastBackPressTime;
+
+  static const platform = MethodChannel(
+    'com.example.fintenessmanager/back_button',
+  );
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
-    
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutCubic,
-    ));
-    
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+
     _animationController.forward();
+
+    // 네이티브 뒤로가기 처리 설정
+    platform.setMethodCallHandler(_handleNativeBackPress);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _animationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleNativeBackPress(MethodCall call) async {
+    if (call.method == 'onBackPressed') {
+      print('Native back button pressed');
+      try {
+        final result = await platform.invokeMethod('handleBackPressed');
+        if (result == true) {
+          print('Exiting app from native');
+          SystemNavigator.pop();
+        } else {
+          print('Showing exit confirmation from native');
+        }
+      } catch (e) {
+        print('Error handling native back press: $e');
+      }
+    }
+  }
+
+  @override
+  Future<bool> didPopRoute() async {
+    print('didPopRoute called in home screen');
+    final now = DateTime.now();
+    if (_lastBackPressTime == null ||
+        now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+      _lastBackPressTime = now;
+      print('Showing exit confirmation snackbar');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('뒤로가기 버튼을 한 번 더 누르면 앱이 종료됩니다'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return true; // 뒤로가기 이벤트를 처리했음을 알림
+    } else {
+      print('Exiting app');
+      SystemNavigator.pop();
+      return true;
+    }
+  }
+
+  void _handleBackPress() {
+    print('Back button pressed in home screen');
+    // PopScope에서 호출되는 경우
+    didPopRoute();
   }
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _handleBackPress();
+        }
+      },
       child: Scaffold(
         body: Container(
           decoration: BoxDecoration(
@@ -73,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   children: [
                     // 헤더 섹션
                     _buildHeader(context),
-                    
+
                     // 메뉴 그리드
                     Expanded(
                       child: Padding(
@@ -89,7 +153,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               '운동 종류\n관리',
                               Icons.fitness_center,
                               [Colors.blue.shade400, Colors.blue.shade600],
-                              () => context.go('/exercises'),
+                              () {
+                                ref.read(navigationManagerProvider).updateNavigationHistory('/exercises');
+                                context.go('/exercises');
+                              },
                               0,
                             ),
                             _buildAnimatedMenuCard(
@@ -97,7 +164,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               '운동\n기록',
                               Icons.assignment_outlined,
                               [Colors.green.shade400, Colors.green.shade600],
-                              () => context.go('/exercise-record'),
+                              () {
+                                ref.read(navigationManagerProvider).updateNavigationHistory('/exercise-record');
+                                context.go('/exercise-record');
+                              },
                               1,
                             ),
                             _buildAnimatedMenuCard(
@@ -105,15 +175,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               '몸무게\n기록',
                               Icons.monitor_weight_outlined,
                               [Colors.orange.shade400, Colors.orange.shade600],
-                              () => context.go('/weight-record'),
+                              () {
+                                ref.read(navigationManagerProvider).updateNavigationHistory('/weight-record');
+                                context.go('/weight-record');
+                              },
                               2,
                             ),
                             _buildAnimatedMenuCard(
                               context,
-                              '통계 &\n차트',
+                              '피트니스\n분석',
                               Icons.analytics_outlined,
                               [Colors.purple.shade400, Colors.purple.shade600],
-                              () => context.go('/statistics'),
+                              () {
+                                ref.read(navigationManagerProvider).updateNavigationHistory('/statistics');
+                                context.go('/statistics');
+                              },
                               3,
                             ),
                             _buildAnimatedMenuCard(
@@ -121,7 +197,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               '데이터\n내보내기',
                               Icons.upload_file_outlined,
                               [Colors.teal.shade400, Colors.teal.shade600],
-                              () => context.go('/export'),
+                              () {
+                                ref.read(navigationManagerProvider).updateNavigationHistory('/export');
+                                context.go('/export');
+                              },
                               4,
                             ),
                           ],
@@ -193,7 +272,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ],
           ),
           const SizedBox(height: 16),
-          
+
           // 오늘의 동기부여 메시지
           Container(
             width: double.infinity,
@@ -309,7 +388,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
-                      
+
                       // 메인 콘텐츠
                       Padding(
                         padding: const EdgeInsets.all(16),
@@ -322,11 +401,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 color: Colors.white.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Icon(
-                                icon,
-                                size: 32,
-                                color: Colors.white,
-                              ),
+                              child: Icon(icon, size: 32, color: Colors.white),
                             ),
                             const SizedBox(height: 12),
                             Text(

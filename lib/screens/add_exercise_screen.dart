@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../models/exercise_type.dart';
 import '../providers/database_provider.dart';
 import '../providers/exercise_provider.dart';
+import '../navigation/back_button_mixin.dart';
 
 class AddExerciseScreen extends ConsumerStatefulWidget {
   const AddExerciseScreen({super.key});
@@ -13,7 +14,7 @@ class AddExerciseScreen extends ConsumerStatefulWidget {
 }
 
 class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> 
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, BackButtonMixin {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
 
@@ -64,7 +65,8 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return buildWithBackButton(
+      child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -94,6 +96,7 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen>
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -116,9 +119,22 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen>
                 ),
               ],
             ),
-            child: IconButton(
-              onPressed: () => context.go('/exercises'),
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+            child: Consumer(
+              builder: (context, ref, _) {
+                return IconButton(
+                  onPressed: () async {
+                    if (!context.mounted) return;
+                    
+                    final navigationManager = ref.read(navigationManagerProvider);
+                    final result = await navigationManager.handleBackNavigation(context);
+                    
+                    if (context.mounted) {
+                      await navigationManager.executeNavigation(context, result);
+                    }
+                  },
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                );
+              },
             ),
           ),
           const SizedBox(width: 16),
@@ -561,7 +577,13 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen>
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(const SnackBar(content: Text('운동이 추가되었습니다')));
-          context.go('/exercises');
+          
+          // NavigationManager를 통해 안전하게 뒤로가기
+          final navigationManager = ref.read(navigationManagerProvider);
+          final result = await navigationManager.handleBackNavigation(context);
+          if (context.mounted) {
+            await navigationManager.executeNavigation(context, result);
+          }
         }
       }
     } catch (e) {

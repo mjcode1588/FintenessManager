@@ -5,6 +5,7 @@ import '../screens/statistics/body_part_analysis_tab.dart';
 import '../screens/statistics/dashboard_tab.dart';
 import '../screens/statistics/period_analysis_tab.dart';
 import '../screens/statistics/weight_chart_tab.dart';
+import '../navigation/back_button_mixin.dart';
 
 class StatisticsScreen extends ConsumerStatefulWidget {
   const StatisticsScreen({super.key});
@@ -14,7 +15,7 @@ class StatisticsScreen extends ConsumerStatefulWidget {
 }
 
 class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, BackButtonMixin {
   late TabController _tabController;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -42,7 +43,8 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return buildWithBackButton(
+      child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -78,6 +80,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
           ),
         ),
       ),
+      ),
     );
   }
 
@@ -100,9 +103,22 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
                 ),
               ],
             ),
-            child: IconButton(
-              onPressed: () => context.go('/'),
-              icon: const Icon(Icons.home, color: Colors.white),
+            child: Consumer(
+              builder: (context, ref, _) {
+                return IconButton(
+                  onPressed: () async {
+                    if (!context.mounted) return;
+                    
+                    final navigationManager = ref.read(navigationManagerProvider);
+                    final result = await navigationManager.handleBackNavigation(context);
+                    
+                    if (context.mounted) {
+                      await navigationManager.executeNavigation(context, result);
+                    }
+                  },
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                );
+              },
             ),
           ),
           const SizedBox(width: 16),

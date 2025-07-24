@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/exercise_provider.dart';
 import '../providers/database_provider.dart';
+import '../navigation/back_button_mixin.dart';
 
 class ExerciseListScreen extends ConsumerStatefulWidget {
   const ExerciseListScreen({super.key});
@@ -12,7 +13,7 @@ class ExerciseListScreen extends ConsumerStatefulWidget {
 }
 
 class _ExerciseListScreenState extends ConsumerState<ExerciseListScreen> 
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, BackButtonMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -54,7 +55,8 @@ class _ExerciseListScreenState extends ConsumerState<ExerciseListScreen>
   Widget build(BuildContext context) {
     final exerciseTypesAsync = ref.watch(exerciseTypesProvider);
 
-    return Scaffold(
+    return buildWithBackButton(
+      child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -89,6 +91,7 @@ class _ExerciseListScreenState extends ConsumerState<ExerciseListScreen>
         ),
       ),
       floatingActionButton: _buildFloatingActionButton(),
+      ),
     );
   }
 
@@ -111,9 +114,22 @@ class _ExerciseListScreenState extends ConsumerState<ExerciseListScreen>
                 ),
               ],
             ),
-            child: IconButton(
-              onPressed: () => context.go('/'),
-              icon: const Icon(Icons.home, color: Colors.white),
+            child: Consumer(
+              builder: (context, ref, _) {
+                return IconButton(
+                  onPressed: () async {
+                    if (!context.mounted) return;
+                    
+                    final navigationManager = ref.read(navigationManagerProvider);
+                    final result = await navigationManager.handleBackNavigation(context);
+                    
+                    if (context.mounted) {
+                      await navigationManager.executeNavigation(context, result);
+                    }
+                  },
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                );
+              },
             ),
           ),
           const SizedBox(width: 16),
@@ -160,7 +176,7 @@ class _ExerciseListScreenState extends ConsumerState<ExerciseListScreen>
         ],
       ),
       child: FloatingActionButton(
-        onPressed: () => context.go('/add-exercise'),
+        onPressed: () => context.go('/exercises/add'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         child: const Icon(Icons.add, color: Colors.white, size: 28),
@@ -253,7 +269,7 @@ class _ExerciseListScreenState extends ConsumerState<ExerciseListScreen>
               ],
             ),
             child: ElevatedButton.icon(
-              onPressed: () => context.go('/add-exercise'),
+              onPressed: () => context.go('/exercises/add'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
                 shadowColor: Colors.transparent,

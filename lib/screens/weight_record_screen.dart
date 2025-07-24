@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/weight_provider.dart';
+import '../navigation/back_button_mixin.dart';
 
 class WeightRecordScreen extends ConsumerStatefulWidget {
   const WeightRecordScreen({super.key});
@@ -12,7 +13,7 @@ class WeightRecordScreen extends ConsumerStatefulWidget {
 }
 
 class _WeightRecordScreenState extends ConsumerState<WeightRecordScreen> 
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, BackButtonMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -54,7 +55,8 @@ class _WeightRecordScreenState extends ConsumerState<WeightRecordScreen>
   Widget build(BuildContext context) {
     final weightRecordsAsync = ref.watch(weightRecordsProvider);
 
-    return Scaffold(
+    return buildWithBackButton(
+      child: Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -127,9 +129,22 @@ class _WeightRecordScreenState extends ConsumerState<WeightRecordScreen>
                 ),
               ],
             ),
-            child: IconButton(
-              onPressed: () => context.go('/'),
-              icon: const Icon(Icons.home, color: Colors.white),
+            child: Consumer(
+              builder: (context, ref, _) {
+                return IconButton(
+                  onPressed: () async {
+                    if (!context.mounted) return;
+                    
+                    final navigationManager = ref.read(navigationManagerProvider);
+                    final result = await navigationManager.handleBackNavigation(context);
+                    
+                    if (context.mounted) {
+                      await navigationManager.executeNavigation(context, result);
+                    }
+                  },
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                );
+              },
             ),
           ),
           const SizedBox(width: 16),
