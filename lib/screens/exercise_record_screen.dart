@@ -85,43 +85,189 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('운동 기록'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        leading: IconButton(
-          icon: const Icon(Icons.home),
-          onPressed: () => context.go('/'),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.orange.shade50,
+              Colors.red.shade50,
+              Colors.pink.shade50,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(context),
+              Expanded(child: _buildBody(exerciseRecordsAsync)),
+            ],
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddRecordDialog,
-        child: const Icon(Icons.add),
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.orange.shade400, Colors.red.shade500],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.shade300,
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: FloatingActionButton(
+          onPressed: _showAddRecordDialog,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: const Icon(Icons.add, color: Colors.white, size: 28),
+        ),
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // 커스텀 캘린더
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: TableCalendar(
-                availableCalendarFormats: const {CalendarFormat.month: 'Month'},
-                firstDay: DateTime(2020),
-                lastDay: DateTime.now().add(const Duration(days: 365)),
-                focusedDay: _selectedDate,
-                selectedDayPredicate: (day) => isSameDay(day, _selectedDate),
-                onDaySelected: (selectedDay, focusedDay) {
-                  setState(() {
-                    _selectedDate = selectedDay;
-                  });
-                },
-                calendarBuilders: CalendarBuilders(
-                  markerBuilder: (context, day, events) => Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: _buildMarkers(day, _selectedDate),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20.0),
+      child: Row(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.orange.shade400, Colors.red.shade400],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.orange.shade200,
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: IconButton(
+              onPressed: () => context.go('/'),
+              icon: const Icon(Icons.home, color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '운동 기록',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
                   ),
+                ),
+                Text(
+                  _dateFormat.format(_selectedDate),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.3),
+              ),
+            ),
+            child: IconButton(
+              onPressed: _selectDate,
+              icon: Icon(Icons.calendar_today, color: Colors.orange.shade600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(AsyncValue<List<Map<String, dynamic>>> exerciseRecordsAsync) {
+    return Column(
+      children: [
+        // 커스텀 캘린더
+        Container(
+          margin: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: TableCalendar(
+              availableCalendarFormats: const {CalendarFormat.month: 'Month'},
+              firstDay: DateTime(2020),
+              lastDay: DateTime.now().add(const Duration(days: 365)),
+              focusedDay: _selectedDate,
+              selectedDayPredicate: (day) => isSameDay(day, _selectedDate),
+              onDaySelected: (selectedDay, focusedDay) {
+                setState(() {
+                  _selectedDate = selectedDay;
+                });
+              },
+              calendarStyle: CalendarStyle(
+                outsideDaysVisible: false,
+                selectedDecoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.orange.shade400, Colors.red.shade400],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                todayDecoration: BoxDecoration(
+                  color: Colors.orange.shade200,
+                  shape: BoxShape.circle,
+                ),
+                markerDecoration: BoxDecoration(
+                  color: Colors.blue.shade400,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              headerStyle: HeaderStyle(
+                formatButtonVisible: false,
+                titleCentered: true,
+                titleTextStyle: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade800,
+                ),
+                leftChevronIcon: Icon(
+                  Icons.chevron_left,
+                  color: Colors.orange.shade600,
+                ),
+                rightChevronIcon: Icon(
+                  Icons.chevron_right,
+                  color: Colors.orange.shade600,
+                ),
+              ),
+              calendarBuilders: CalendarBuilders(
+                markerBuilder: (context, day, events) => Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: _buildMarkers(day, _selectedDate),
                 ),
               ),
             ),
+          ),
+        ),
 
             // 운동 요약 정보
             exerciseRecordsAsync.when(
@@ -299,9 +445,7 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen> {
               ),
             ),
           ],
-        ),
-      ),
-    );
+        );     
   }
 
   Future<void> _selectDate() async {

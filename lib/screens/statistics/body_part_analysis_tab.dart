@@ -11,6 +11,7 @@ class BodyPartAnalysisTab extends ConsumerStatefulWidget {
 
 class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
   String _selectedBodyPart = 'chest'; // 선택된 부위
+  String? _selectedExercise; // 선택된 운동
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +22,7 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
         children: [
           // 헤더
           const Text(
-            '부위별 분석 (전체 기간)',
+            '운동별 진행 분석',
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
@@ -30,16 +31,24 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
           _buildBodyPartSelector(),
           const SizedBox(height: 16),
 
-          // 부위별 운동 강도 분석 (전체 기간)
-          _buildBodyPartIntensityAnalysis(),
+          // 운동 선택
+          _buildExerciseSelector(),
           const SizedBox(height: 16),
 
-          // 부위별 운동 분포 (전체 기간)
-          _buildBodyPartExerciseDistribution(),
-          const SizedBox(height: 16),
+          // 선택된 운동이 있을 때만 분석 표시
+          if (_selectedExercise != null) ...[
+            // 운동 진행 상황 분석
+            _buildExerciseProgressAnalysis(),
+            const SizedBox(height: 16),
 
-          // 부위별 개인 기록 (전체 기간)
-          _buildBodyPartPersonalRecords(),
+            // 운동 볼륨 트렌드
+            _buildExerciseVolumeTrend(),
+            const SizedBox(height: 16),
+
+            // 운동 중량/횟수 진행
+            _buildExerciseWeightRepsProgress(),
+          ] else
+            _buildSelectExercisePrompt(),
         ],
       ),
     );
@@ -110,7 +119,114 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
 
 
 
-  Widget _buildBodyPartIntensityAnalysis() {
+  Widget _buildExerciseSelector() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '분석할 운동 선택',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Consumer(
+              builder: (context, ref, child) {
+                final detailsAsync = ref.watch(allTimeBodyPartExerciseDetailsProvider);
+                
+                return detailsAsync.when(
+                  data: (bodyPartExercises) {
+                    final exercises = bodyPartExercises[_selectedBodyPart] ?? [];
+                    
+                    if (exercises.isEmpty) {
+                      return const Text(
+                        '해당 부위에 운동 기록이 없습니다.',
+                        style: TextStyle(color: Colors.grey),
+                      );
+                    }
+
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: exercises.map<Widget>((exercise) {
+                        final exerciseName = exercise['exercise_name'] as String;
+                        final isSelected = _selectedExercise == exerciseName;
+                        final bodyPartColor = _getBodyPartColor(_selectedBodyPart);
+                        
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedExercise = exerciseName),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isSelected ? bodyPartColor : bodyPartColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: bodyPartColor,
+                                width: isSelected ? 2 : 1,
+                              ),
+                            ),
+                            child: Text(
+                              exerciseName,
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : bodyPartColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  },
+                  loading: () => const CircularProgressIndicator(),
+                  error: (e, s) => Text('오류: $e'),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectExercisePrompt() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.fitness_center,
+                size: 48,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '분석할 운동을 선택해주세요',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '위에서 부위와 운동을 선택하면\n해당 운동의 진행 상황을 분석해드립니다.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExerciseProgressAnalysis() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -119,40 +235,41 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
           children: [
             Row(
               children: [
-                Icon(Icons.speed, color: _getBodyPartColor(_selectedBodyPart)),
+                Icon(Icons.trending_up, color: _getBodyPartColor(_selectedBodyPart)),
                 const SizedBox(width: 8),
-                Text(
-                  '${_getBodyPartDisplayName(_selectedBodyPart)} 운동 강도',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    '$_selectedExercise 진행 상황',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Text(
-              '${_getBodyPartDisplayName(_selectedBodyPart)} 부위의 전체 기간 평균 세트당 볼륨과 운동 빈도를 분석합니다.',
+              '선택한 운동의 전체적인 진행 상황과 최근 성과를 분석합니다.',
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 16),
             Consumer(
               builder: (context, ref, child) {
-                final statsAsync = ref.watch(allTimeBodyPartStatsProvider(_selectedBodyPart));
+                final progressAsync = ref.watch(exerciseProgressAnalysisProvider(_selectedExercise!));
                 
-                return statsAsync.when(
-                  data: (stats) {
-                    final totalVolume = (stats['total_volume'] as double?) ?? 0.0;
-                    final totalSets = (stats['total_sets'] as int?) ?? 0;
-                    final exerciseCount = (stats['exercise_count'] as int?) ?? 0;
-                    final avgVolumePerSet = totalSets > 0 ? totalVolume / totalSets : 0.0;
+                return progressAsync.when(
+                  data: (progress) {
+                    final totalSessions = progress['total_sessions'] as int? ?? 0;
+                    final totalVolume = (progress['total_volume'] as double?) ?? 0.0;
+                    final avgVolume = (progress['avg_volume_per_session'] as double?) ?? 0.0;
+                    final maxWeight = (progress['max_weight'] as double?) ?? 0.0;
+                    final recentTrend = progress['recent_trend'] as String? ?? 'stable';
                     
-                    if (totalVolume == 0) {
+                    if (totalSessions == 0) {
                       return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(32),
-                          child: Text('운동 기록이 없습니다.'),
-                        ),
+                        child: Text('운동 기록이 없습니다.'),
                       );
                     }
 
@@ -161,19 +278,19 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
                         Row(
                           children: [
                             Expanded(
-                              child: _buildIntensityCard(
-                                '총 볼륨',
-                                '${totalVolume.toStringAsFixed(0)}kg',
-                                Icons.fitness_center,
+                              child: _buildProgressCard(
+                                '총 운동 횟수',
+                                '${totalSessions}회',
+                                Icons.calendar_today,
                                 _getBodyPartColor(_selectedBodyPart),
                               ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: _buildIntensityCard(
-                                '총 세트',
-                                '${totalSets}세트',
-                                Icons.repeat,
+                              child: _buildProgressCard(
+                                '총 볼륨',
+                                '${totalVolume.toStringAsFixed(0)}kg',
+                                Icons.fitness_center,
                                 _getBodyPartColor(_selectedBodyPart),
                               ),
                             ),
@@ -183,24 +300,26 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
                         Row(
                           children: [
                             Expanded(
-                              child: _buildIntensityCard(
-                                '세트당 볼륨',
-                                '${avgVolumePerSet.toStringAsFixed(1)}kg',
-                                Icons.trending_up,
+                              child: _buildProgressCard(
+                                '평균 볼륨',
+                                '${avgVolume.toStringAsFixed(1)}kg',
+                                Icons.bar_chart,
                                 _getBodyPartColor(_selectedBodyPart),
                               ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: _buildIntensityCard(
-                                '운동 종류',
-                                '${exerciseCount}개',
-                                Icons.list,
+                              child: _buildProgressCard(
+                                '최고 중량',
+                                '${maxWeight.toStringAsFixed(1)}kg',
+                                Icons.emoji_events,
                                 _getBodyPartColor(_selectedBodyPart),
                               ),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 16),
+                        _buildTrendIndicator(recentTrend),
                       ],
                     );
                   },
@@ -215,7 +334,7 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
     );
   }
 
-  Widget _buildBodyPartExerciseDistribution() {
+  Widget _buildExerciseVolumeTrend() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -224,50 +343,48 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
           children: [
             Row(
               children: [
-                Icon(Icons.pie_chart, color: _getBodyPartColor(_selectedBodyPart)),
+                Icon(Icons.show_chart, color: _getBodyPartColor(_selectedBodyPart)),
                 const SizedBox(width: 8),
-                Text(
-                  '${_getBodyPartDisplayName(_selectedBodyPart)} 운동 분포',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    '$_selectedExercise 볼륨 변화',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Text(
-              '${_getBodyPartDisplayName(_selectedBodyPart)} 부위에서 수행한 각 운동의 비중을 보여줍니다.',
+              '시간에 따른 운동 볼륨의 변화를 보여줍니다.',
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 16),
             Consumer(
               builder: (context, ref, child) {
-                final detailsAsync = ref.watch(allTimeBodyPartExerciseDetailsProvider);
+                final trendAsync = ref.watch(exerciseVolumeTrendProvider(_selectedExercise!));
                 
-                return detailsAsync.when(
-                  data: (bodyPartExercises) {
-                    final exercises = bodyPartExercises[_selectedBodyPart] ?? [];
-                    
-                    if (exercises.isEmpty) {
+                return trendAsync.when(
+                  data: (trendData) {
+                    if (trendData.isEmpty) {
                       return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(32),
-                          child: Text('해당 기간에 운동 기록이 없습니다.'),
-                        ),
+                        child: Text('볼륨 데이터가 없습니다.'),
                       );
                     }
 
+                    final maxVolume = trendData.fold<double>(
+                      0.0,
+                      (max, data) => (data['volume'] as double) > max ? (data['volume'] as double) : max,
+                    );
+
                     return Column(
-                      children: exercises.map<Widget>((exercise) {
-                        final exerciseName = exercise['exercise_name'] as String;
-                        final frequency = exercise['frequency'] as int;
-                        final totalVolume = (exercise['total_volume'] as double?) ?? 0.0;
-                        final maxFrequency = exercises.fold<int>(
-                          0, 
-                          (max, e) => (e['frequency'] as int) > max ? (e['frequency'] as int) : max,
-                        );
-                        final percentage = maxFrequency > 0 ? frequency / maxFrequency : 0.0;
+                      children: trendData.map<Widget>((data) {
+                        final date = data['date'] as String;
+                        final volume = (data['volume'] as double?) ?? 0.0;
+                        final percentage = maxVolume > 0 ? volume / maxVolume : 0.0;
                         
                         return Container(
                           margin: const EdgeInsets.only(bottom: 8),
@@ -275,28 +392,21 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
                           decoration: BoxDecoration(
                             color: _getBodyPartColor(_selectedBodyPart).withOpacity(0.05),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: _getBodyPartColor(_selectedBodyPart).withOpacity(0.2),
-                            ),
                           ),
                           child: Column(
                             children: [
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Expanded(
-                                    child: Text(
-                                      exerciseName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                      maxLines: 2,
+                                  Text(
+                                    date,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
                                     ),
                                   ),
                                   Text(
-                                    '${frequency}회',
+                                    '${volume.toStringAsFixed(0)}kg',
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: _getBodyPartColor(_selectedBodyPart),
@@ -311,29 +421,6 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
                                 valueColor: AlwaysStoppedAnimation<Color>(
                                   _getBodyPartColor(_selectedBodyPart),
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      '총 볼륨: ${totalVolume.toStringAsFixed(0)}kg',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  Text(
-                                    '${(percentage * 100).toStringAsFixed(1)}%',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ],
                               ),
                             ],
                           ),
@@ -352,7 +439,7 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
     );
   }
 
-  Widget _buildBodyPartPersonalRecords() {
+  Widget _buildExerciseWeightRepsProgress() {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -361,47 +448,48 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
           children: [
             Row(
               children: [
-                Icon(Icons.emoji_events, color: _getBodyPartColor(_selectedBodyPart)),
+                Icon(Icons.timeline, color: _getBodyPartColor(_selectedBodyPart)),
                 const SizedBox(width: 8),
-                Text(
-                  '${_getBodyPartDisplayName(_selectedBodyPart)} 개인 기록',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    '$_selectedExercise 중량/횟수 진행',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Text(
-              '${_getBodyPartDisplayName(_selectedBodyPart)} 부위의 최고 기록들을 보여줍니다.',
+              '시간에 따른 중량과 횟수의 변화를 보여줍니다.',
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 16),
             Consumer(
               builder: (context, ref, child) {
-                final recordsAsync = ref.watch(bodyPartPersonalRecordsProvider(_selectedBodyPart));
+                final progressAsync = ref.watch(exerciseWeightRepsProgressProvider(_selectedExercise!));
                 
-                return recordsAsync.when(
-                  data: (records) {
-                    if (records.isEmpty) {
+                return progressAsync.when(
+                  data: (progressData) {
+                    if (progressData.isEmpty) {
                       return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(32),
-                          child: Text('개인 기록이 없습니다.'),
-                        ),
+                        child: Text('진행 데이터가 없습니다.'),
                       );
                     }
 
                     return Column(
-                      children: records.map<Widget>((record) {
-                        final exerciseName = record['exercise_name'] as String;
-                        final maxWeight = (record['max_weight'] as double?) ?? 0.0;
-                        final maxReps = record['max_reps'] as int?;
-                        final estimated1RM = (record['estimated_1rm'] as double?) ?? 0.0;
+                      children: progressData.map<Widget>((data) {
+                        final date = data['date'] as String;
+                        final maxWeight = (data['max_weight'] as double?) ?? 0.0;
+                        final maxReps = data['max_reps'] as int? ?? 0;
+                        final totalSets = data['total_sets'] as int? ?? 0;
+                        final estimated1RM = (data['estimated_1rm'] as double?) ?? 0.0;
                         
                         return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
+                          margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -419,33 +507,34 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                exerciseName,
+                                date,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14,
                                 ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 2,
                               ),
                               const SizedBox(height: 8),
                               Wrap(
                                 spacing: 16,
                                 runSpacing: 8,
                                 children: [
-                                  if (maxWeight > 0) 
-                                    _buildRecordItem(
-                                      '최고 중량',
-                                      '${maxWeight.toStringAsFixed(1)}kg',
-                                      Icons.fitness_center,
-                                    ),
-                                  if (maxReps != null && maxReps > 0) 
-                                    _buildRecordItem(
-                                      '최고 횟수',
-                                      '${maxReps}회',
-                                      Icons.numbers,
-                                    ),
-                                  if (estimated1RM > 0) 
-                                    _buildRecordItem(
+                                  _buildProgressItem(
+                                    '최고 중량',
+                                    '${maxWeight.toStringAsFixed(1)}kg',
+                                    Icons.fitness_center,
+                                  ),
+                                  _buildProgressItem(
+                                    '최고 횟수',
+                                    '${maxReps}회',
+                                    Icons.numbers,
+                                  ),
+                                  _buildProgressItem(
+                                    '총 세트',
+                                    '${totalSets}세트',
+                                    Icons.repeat,
+                                  ),
+                                  if (estimated1RM > 0)
+                                    _buildProgressItem(
                                       '1RM 추정',
                                       '${estimated1RM.toStringAsFixed(1)}kg',
                                       Icons.trending_up,
@@ -469,7 +558,7 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
     );
   }
 
-  Widget _buildRecordItem(String label, String value, IconData icon) {
+  Widget _buildProgressItem(String label, String value, IconData icon) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -494,7 +583,7 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
     );
   }
 
-  Widget _buildIntensityCard(String title, String value, IconData icon, Color color) {
+  Widget _buildProgressCard(String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -518,6 +607,54 @@ class _BodyPartAnalysisTabState extends ConsumerState<BodyPartAnalysisTab> {
             title,
             style: const TextStyle(fontSize: 10, color: Colors.grey),
             textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrendIndicator(String trend) {
+    IconData icon;
+    Color color;
+    String message;
+
+    switch (trend) {
+      case 'increasing':
+        icon = Icons.trending_up;
+        color = Colors.green;
+        message = '최근 성과가 향상되고 있습니다!';
+        break;
+      case 'decreasing':
+        icon = Icons.trending_down;
+        color = Colors.red;
+        message = '최근 성과가 감소하고 있습니다.';
+        break;
+      default:
+        icon = Icons.trending_flat;
+        color = Colors.orange;
+        message = '최근 성과가 안정적입니다.';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
           ),
         ],
       ),

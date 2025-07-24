@@ -14,14 +14,16 @@ import 'screens/export_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChannels.platform.invokeMethod('SystemNavigator.routeInformationUpdated');
+  SystemChannels.platform.invokeMethod(
+    'SystemNavigator.routeInformationUpdated',
+  );
 
   // 웹에서 sqflite를 사용하기 위한 초기화
   if (kIsWeb) {
     // 웹에서는 sqflite_common_ffi를 사용
     databaseFactory = databaseFactoryFfi;
   }
-  
+
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -53,10 +55,14 @@ class _HomeWrapperState extends State<HomeWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        if (_lastPressedAt == null || 
-            DateTime.now().difference(_lastPressedAt!) > const Duration(seconds: 2)) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        if (_lastPressedAt == null ||
+            DateTime.now().difference(_lastPressedAt!) >
+                const Duration(seconds: 2)) {
           _lastPressedAt = DateTime.now();
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -64,9 +70,9 @@ class _HomeWrapperState extends State<HomeWrapper> {
               duration: Duration(seconds: 2),
             ),
           );
-          return false;
+        } else {
+          SystemNavigator.pop();
         }
-        return true;
       },
       child: const HomeScreen(),
     );
@@ -76,16 +82,13 @@ class _HomeWrapperState extends State<HomeWrapper> {
 final _router = GoRouter(
   initialLocation: '/',
   routes: [
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const HomeWrapper(),
-    ),
+    GoRoute(path: '/', builder: (context, state) => const HomeWrapper()),
     GoRoute(
       path: '/exercises',
-      builder: (context, state) => WillPopScope(
-        onWillPop: () async {
-          context.go('/');
-          return false;
+      builder: (context, state) => PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) context.go('/');
         },
         child: const ExerciseListScreen(),
       ),
@@ -96,40 +99,40 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/exercise-record',
-      builder: (context, state) => WillPopScope(
-        onWillPop: () async {
-          context.go('/');
-          return false;
+      builder: (context, state) => PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) context.go('/');
         },
         child: const ExerciseRecordScreen(),
       ),
     ),
     GoRoute(
       path: '/weight-record',
-      builder: (context, state) => WillPopScope(
-        onWillPop: () async {
-          context.go('/');
-          return false;
+      builder: (context, state) => PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) context.go('/');
         },
         child: const WeightRecordScreen(),
       ),
     ),
     GoRoute(
       path: '/statistics',
-      builder: (context, state) => WillPopScope(
-        onWillPop: () async {
-          context.go('/');
-          return false;
+      builder: (context, state) => PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) context.go('/');
         },
         child: const StatisticsScreen(),
       ),
     ),
     GoRoute(
       path: '/export',
-      builder: (context, state) => WillPopScope(
-        onWillPop: () async {
-          context.go('/');
-          return false;
+      builder: (context, state) => PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) context.go('/');
         },
         child: ExportScreen(),
       ),
