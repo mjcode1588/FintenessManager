@@ -15,6 +15,38 @@ final weightRecordByDateProvider =
   return await database.getWeightRecordByDate(date);
 });
 
+// 최신 몸무게 기록 프로바이더
+final latestWeightProvider = FutureProvider<double?>((ref) async {
+  try {
+    final database = ref.watch(databaseProvider);
+    final records = await database.getAllWeightRecords();
+    
+    print('몸무게 기록 개수: ${records.length}');
+    if (records.isNotEmpty) {
+      print('첫 번째 기록: ${records.first}');
+    }
+    
+    if (records.isEmpty) return null;
+    
+    // 날짜순으로 정렬하여 가장 최신 기록 반환
+    final sortedRecords = List<Map<String, dynamic>>.from(records);
+    sortedRecords.sort((a, b) {
+      final dateA = a['date'] != null ? DateTime.parse(a['date'] as String) : DateTime(1970);
+      final dateB = b['date'] != null ? DateTime.parse(b['date'] as String) : DateTime(1970);
+      return dateB.compareTo(dateA); // 최신 날짜가 먼저 오도록 내림차순 정렬
+    });
+    
+    final latestWeight = (sortedRecords.first['weight'] as num?)?.toDouble();
+  
+    print('최신 몸무게: $latestWeight');
+    return latestWeight;
+  } catch (e, stackTrace) {
+    print('latestWeightProvider 오류: $e');
+    print('스택 트레이스: $stackTrace');
+    rethrow;
+  }
+});
+
 // 몸무게 기록 관리 프로바이더
 final weightRecordNotifierProvider = 
     StateNotifierProvider<WeightRecordNotifier, AsyncValue<void>>((ref) {

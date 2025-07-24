@@ -216,6 +216,19 @@ class DatabaseHelper {
     );
   }
 
+  Future<double?> getLatestWeight() async {
+    final db = await database;
+    final results = await db.query(
+      'weight_records',
+      orderBy: 'date DESC',
+      limit: 1,
+    );
+    if (results.isNotEmpty) {
+      return (results.first['weight'] as num?)?.toDouble();
+    }
+    return null;
+  }
+
   Future<Map<String, dynamic>?> getWeightRecordByDate(DateTime date) async {
     final db = await database;
     final dateStr = date.toIso8601String().split('T')[0];
