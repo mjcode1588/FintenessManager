@@ -62,6 +62,7 @@ class NavigationManager extends ChangeNotifier {
     // 뒤로가기 시간 초기화 (새로운 화면으로 이동했으므로)
     _clearExitConfirmation();
     
+    debugPrint('Navigation history updated: $newRoute, history: ${_state.routeHistory}');
     notifyListeners();
   }
 
@@ -99,6 +100,8 @@ class NavigationManager extends ChangeNotifier {
 
   /// 일반 화면에서의 뒤로가기 처리
   BackNavigationResult _handleStandardBackNavigation(BuildContext context) {
+    debugPrint('Standard back navigation - canNavigateBack: $canNavigateBack, history: ${_state.routeHistory}');
+    
     // 히스토리가 있는 경우 이전 화면으로 이동
     if (canNavigateBack) {
       final previousRoute = _state.routeHistory.last;
@@ -112,13 +115,15 @@ class NavigationManager extends ChangeNotifier {
       );
       notifyListeners();
       
+      debugPrint('Navigating back to: $previousRoute');
       return BackNavigationResult(
         action: BackNavigationAction.pop,
         targetRoute: previousRoute,
       );
     }
     
-    // 히스토리가 없는 경우 홈으로 이동
+    // 히스토리가 없는 경우 항상 홈으로 이동 (앱 종료 방지)
+    debugPrint('No history found, going home');
     _state = _state.copyWith(
       routeHistory: [],
       currentRoute: '/',
@@ -158,25 +163,27 @@ class NavigationManager extends ChangeNotifier {
   Future<bool> executeNavigation(BuildContext context, BackNavigationResult result) async {
     if (!context.mounted) return false;
 
+    debugPrint('Executing navigation: ${result.action}, target: ${result.targetRoute}');
+
     try {
       switch (result.action) {
         case BackNavigationAction.pop:
-          if (result.targetRoute != null) {
-            context.go(result.targetRoute!);
-          } else {
-            context.pop();
-          }
+          debugPrint('Popping current route');
+          context.pop();
           break;
           
         case BackNavigationAction.goHome:
+          debugPrint('Going home');
           context.go('/');
           break;
           
         case BackNavigationAction.showExitDialog:
+          debugPrint('Showing exit confirmation');
           showExitConfirmationSnackBar(context);
           break;
           
         case BackNavigationAction.exit:
+          debugPrint('Exiting app');
           exitApp();
           break;
       }

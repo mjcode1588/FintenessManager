@@ -55,8 +55,7 @@ class _WeightRecordScreenState extends ConsumerState<WeightRecordScreen>
   Widget build(BuildContext context) {
     final weightRecordsAsync = ref.watch(weightRecordsProvider);
 
-    return buildWithBackButton(
-      child: Scaffold(
+    return Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(

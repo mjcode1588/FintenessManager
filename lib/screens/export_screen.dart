@@ -13,14 +13,14 @@ import '../navigation/back_button_mixin.dart';
 
 class ExportScreen extends ConsumerWidget {
   const ExportScreen({super.key});
-  
-  final dbHelper = const DatabaseHelper();
 
   Future<void> _exportData(BuildContext context) async {
     try {
+      final dbHelper = DatabaseHelper();
       // 1. Fetch data from database
       final weightData = await dbHelper.getAllWeightRecords();
       final exerciseData = await dbHelper.getAllExerciseRecordsWithDetails();
+      final exerciseTypes = await dbHelper.getAllExerciseTypes();
 
       final List<WeightRecord> weightRecords = weightData
           .map(
@@ -97,6 +97,25 @@ class ExportScreen extends ConsumerWidget {
         ]);
       }
 
+      // Create Exercise Types Sheet
+      Sheet exerciseTypeSheet = excel['Exercise Types'];
+      exerciseTypeSheet.appendRow([
+        TextCellValue('ID'),
+        TextCellValue('Name'),
+        TextCellValue('Category'),
+        TextCellValue('Body_Part'),
+        TextCellValue('Counting_Method'),
+      ]);
+      for (var type in exerciseTypes) {
+        exerciseTypeSheet.appendRow([
+          TextCellValue(type['id'].toString()),
+          TextCellValue(type['name'] as String),
+          TextCellValue(type['category'] as String),
+          TextCellValue(type['body_part'] as String),
+          TextCellValue(type['counting_method'] as String),
+        ]);
+      }
+
       // 3. Save the file
       final directory = await getTemporaryDirectory();
       final filePath = '${directory.path}/fitness_data.xlsx';
@@ -128,6 +147,7 @@ class ExportScreen extends ConsumerWidget {
 
   Future<void> _importData(BuildContext context) async {
     try {
+      final dbHelper = DatabaseHelper();
       final typeGroup = XTypeGroup(label: 'excel', extensions: ['xlsx']);
       final file = await openFile(acceptedTypeGroups: [typeGroup]);
       if (file == null) {
@@ -138,6 +158,48 @@ class ExportScreen extends ConsumerWidget {
       }
       final bytes = await file.readAsBytes();
       final excel = Excel.decodeBytes(bytes);
+
+      // Import Exercise Types
+      if (excel.sheets.containsKey('Exercise Types')) {
+        final sheet = excel['Exercise Types']!;
+        for (int i = 1; i < sheet.rows.length; i++) {
+          final row = sheet.rows[i];
+          if (row.length < 5) continue; // Need at least 5 columns
+          
+          final typeId = row[0]?.value.toString();
+          final typeName = row[1]?.value.toString() ?? '';
+          final category = row[2]?.value.toString() ?? '';
+          final bodyPart = row[3]?.value.toString() ?? '';
+          final countingMethod = row[4]?.value.toString() ?? '';
+          
+          if (typeName.isNotEmpty) {
+            // Check for duplicate by name first
+            final existingType = await dbHelper.getExerciseTypeByName(typeName);
+            if (existingType == null) {
+              // Insert with all available fields
+              await dbHelper.insertExerciseType({
+                'name': typeName,
+                'category': category,
+                'body_part': bodyPart,
+                'counting_method': countingMethod,
+              });
+            } else {
+              // Update existing type with additional fields if they're missing
+              final db = await dbHelper.database;
+              await db.update(
+                'exercise_types',
+                {
+                  'category': category.isNotEmpty ? category : existingType['category'],
+                  'body_part': bodyPart.isNotEmpty ? bodyPart : existingType['body_part'],
+                  'counting_method': countingMethod.isNotEmpty ? countingMethod : existingType['counting_method'],
+                },
+                where: 'id = ?',
+                whereArgs: [existingType['id']],
+              );
+            }
+          }
+        }
+      }
 
       // Import Weight Records
       if (excel.sheets.containsKey('Weight Records')) {
@@ -223,21 +285,7 @@ class ExportScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Consumer(
-      builder: (context, ref, _) {
-        return PopScope(
-          canPop: false,
-          onPopInvokedWithResult: (didPop, result) async {
-            if (didPop) return;
-            
-            final navigationManager = ref.read(navigationManagerProvider);
-            final navResult = await navigationManager.handleBackNavigation(context);
-            
-            if (context.mounted) {
-              await navigationManager.executeNavigation(context, navResult);
-            }
-          },
-          child: Scaffold(
+    return Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -253,7 +301,7 @@ class ExportScreen extends ConsumerWidget {
         child: SafeArea(
           child: Column(
             children: [
-              _buildHeader(context),
+              _buildHeader(context, ref),
               Expanded(child: _buildBody(context)),
             ],
           ),
@@ -262,7 +310,7 @@ class ExportScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.all(20.0),
       child: Row(
@@ -378,16 +426,13 @@ class ExportScreen extends ConsumerWidget {
               ),
             ),
           ),
-            SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () => _importData(context),
-              child: Text('엑셀파일에서 데이터 가져오기'),
-            ),
-          ],
-        ),
-        ),
-      );
-    },
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () => _importData(context),
+            child: const Text('엑셀파일에서 데이터 가져오기'),
+          ),
+        ],
+      ),
     );
   }
 }
