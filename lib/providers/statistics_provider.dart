@@ -755,3 +755,143 @@ final allTimeBodyPartStatsProvider =
         'exercise_count': row['exercise_count'] as int,
       };
     });
+
+// 운동별 진행 상황 분석 프로바이더
+final exerciseProgressAnalysisProvider =
+    FutureProvider.family<Map<String, dynamic>, String>((ref, exerciseName) async {
+      final database = ref.watch(databaseProvider);
+      final db = await database.database;
+
+      // 기본 통계
+      final basicStats = await db.rawQuery(
+        '''
+    SELECT 
+      COUNT(DISTINCT DATE(er.date)) as total_sessions,
+      SUM(er.weight * er.reps * er.sets) as total_volume,
+      AVG(er.weight * er.reps * er.sets) as avg_volume_per_session,
+      MAX(er.weight) as max_weight
+    FROM exercise_records er
+    JOIN exercise_types et ON er.exercise_type_id = et.id
+    WHERE et.name = ?
+    AND er.weight IS NOT NULL AND er.reps IS NOT NULL AND er.sets IS NOT NULL
+  ''',
+        [exerciseName],
+      );
+
+      // 최근 트렌드 분석 (최근 5회 vs 이전 5회)
+      final recentSessions = await db.rawQuery(
+        '''
+    SELECT 
+      DATE(er.date) as date,
+      SUM(er.weight * er.reps * er.sets) as session_volume
+    FROM exercise_records er
+    JOIN exercise_types et ON er.exercise_type_id = et.id
+    WHERE et.name = ?
+    AND er.weight IS NOT NULL AND er.reps IS NOT NULL AND er.sets IS NOT NULL
+    GROUP BY DATE(er.date)
+    ORDER BY DATE(er.date) DESC
+    LIMIT 10
+  ''',
+        [exerciseName],
+      );
+
+      String trend = 'stable';
+      if (recentSessions.length >= 6) {
+        final recent5 = recentSessions.take(5).toList();
+        final previous5 = recentSessions.skip(5).take(5).toList();
+        
+        final recentAvg = recent5.fold<double>(0.0, (sum, session) => 
+          sum + ((session['session_volume'] as num?)?.toDouble() ?? 0.0)) / recent5.length;
+        final previousAvg = previous5.fold<double>(0.0, (sum, session) => 
+          sum + ((session['session_volume'] as num?)?.toDouble() ?? 0.0)) / previous5.length;
+        
+        if (recentAvg > previousAvg * 1.1) {
+          trend = 'increasing';
+        } else if (recentAvg < previousAvg * 0.9) {
+          trend = 'decreasing';
+        }
+      }
+
+      final row = basicStats.first;
+      return {
+        'total_sessions': row['total_sessions'] as int,
+        'total_volume': (row['total_volume'] as num?)?.toDouble() ?? 0.0,
+        'avg_volume_per_session': (row['avg_volume_per_session'] as num?)?.toDouble() ?? 0.0,
+        'max_weight': (row['max_weight'] as num?)?.toDouble() ?? 0.0,
+        'recent_trend': trend,
+      };
+    });
+
+// 운동별 볼륨 트렌드 프로바이더
+final exerciseVolumeTrendProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, String>((ref, exerciseName) async {
+      final database = ref.watch(databaseProvider);
+      final db = await database.database;
+
+      final result = await db.rawQuery(
+        '''
+    SELECT 
+      DATE(er.date) as date,
+      SUM(er.weight * er.reps * er.sets) as volume
+    FROM exercise_records er
+    JOIN exercise_types et ON er.exercise_type_id = et.id
+    WHERE et.name = ?
+    AND er.weight IS NOT NULL AND er.reps IS NOT NULL AND er.sets IS NOT NULL
+    GROUP BY DATE(er.date)
+    ORDER BY DATE(er.date) DESC
+    LIMIT 20
+  ''',
+        [exerciseName],
+      );
+
+      return result
+          .map(
+            (row) => {
+              'date': row['date'] as String,
+              'volume': (row['volume'] as num?)?.toDouble() ?? 0.0,
+            },
+          )
+          .toList()
+          .reversed
+          .toList();
+    });
+
+// 운동별 중량/횟수 진행 프로바이더
+final exerciseWeightRepsProgressProvider =
+    FutureProvider.family<List<Map<String, dynamic>>, String>((ref, exerciseName) async {
+      final database = ref.watch(databaseProvider);
+      final db = await database.database;
+
+      final result = await db.rawQuery(
+        '''
+    SELECT 
+      DATE(er.date) as date,
+      MAX(er.weight) as max_weight,
+      MAX(er.reps) as max_reps,
+      SUM(er.sets) as total_sets,
+      MAX(er.weight * er.reps * 0.0333 + er.weight) as estimated_1rm
+    FROM exercise_records er
+    JOIN exercise_types et ON er.exercise_type_id = et.id
+    WHERE et.name = ?
+    AND er.weight IS NOT NULL AND er.reps IS NOT NULL
+    GROUP BY DATE(er.date)
+    ORDER BY DATE(er.date) DESC
+    LIMIT 15
+  ''',
+        [exerciseName],
+      );
+
+      return result
+          .map(
+            (row) => {
+              'date': row['date'] as String,
+              'max_weight': (row['max_weight'] as num?)?.toDouble() ?? 0.0,
+              'max_reps': row['max_reps'] as int? ?? 0,
+              'total_sets': row['total_sets'] as int? ?? 0,
+              'estimated_1rm': (row['estimated_1rm'] as num?)?.toDouble() ?? 0.0,
+            },
+          )
+          .toList()
+          .reversed
+          .toList();
+    });

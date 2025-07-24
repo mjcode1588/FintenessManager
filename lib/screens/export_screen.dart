@@ -220,34 +220,137 @@ class ExportScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('데이터 내보내기'),
-        leading: IconButton(
-          icon: Icon(Icons.home),
-          onPressed: () {
-            // go_router를 사용하는 다른 화면들과 동일하게 홈으로 이동
-            Navigator.of(
-              context,
-            ).popUntil((route) => route.isFirst); // 기존 코드 주석처리 가능
-            // context.go('/')로 홈 이동
-            // go_router import 필요
-            // context.go('/')
-            // 아래처럼 실제로 context.go('/')로 변경
-            // (go_router import가 없으면 추가)
-            // context.go('/')
-            // 실제 적용:
-            context.go('/');
-          },
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.teal.shade50,
+              Colors.cyan.shade50,
+              Colors.blue.shade50,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(context),
+              Expanded(child: _buildBody(context)),
+            ],
+          ),
         ),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton(
-              onPressed: () => _exportData(context),
-              child: Text('운동기록 엑셀파일로 내보내기'),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20.0),
+      child: Row(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.teal.shade400, Colors.cyan.shade400],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.teal.shade200,
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
+            child: IconButton(
+              onPressed: () => context.go('/'),
+              icon: const Icon(Icons.home, color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '데이터 내보내기',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                Text(
+                  '운동 기록을 파일로 내보내세요',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.teal.shade200, Colors.cyan.shade200],
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.upload_file,
+              size: 64,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.teal.shade400, Colors.cyan.shade500],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.teal.shade200,
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: () => _exportData(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              icon: const Icon(Icons.file_download, color: Colors.white),
+              label: const Text(
+                '엑셀 파일로 내보내기',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
             SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => _importData(context),
@@ -255,7 +358,6 @@ class ExportScreen extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }
