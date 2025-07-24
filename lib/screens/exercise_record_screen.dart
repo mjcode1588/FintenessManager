@@ -97,9 +97,9 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Colors.orange.shade50,
-              Colors.red.shade50,
-              Colors.pink.shade50,
+              Colors.green.shade50,
+              Colors.teal.shade50,
+              Colors.cyan.shade50,
             ],
           ),
         ),
@@ -115,12 +115,12 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen>
       floatingActionButton: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.orange.shade400, Colors.red.shade500],
+            colors: [Colors.green.shade400, Colors.teal.shade500],
           ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.orange.shade300,
+              color: Colors.green.shade300,
               blurRadius: 12,
               offset: const Offset(0, 6),
             ),
@@ -145,12 +145,12 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen>
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.orange.shade400, Colors.red.shade400],
+                colors: [Colors.green.shade400, Colors.teal.shade400],
               ),
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.orange.shade200,
+                  color: Colors.green.shade200,
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -202,7 +202,7 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen>
             ),
             child: IconButton(
               onPressed: _selectDate,
-              icon: Icon(Icons.calendar_today, color: Colors.orange.shade600),
+              icon: Icon(Icons.calendar_today, color: Colors.green.shade600),
             ),
           ),
         ],
@@ -246,12 +246,12 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen>
                 outsideDaysVisible: false,
                 selectedDecoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.orange.shade400, Colors.red.shade400],
+                    colors: [Colors.green.shade400, Colors.teal.shade400],
                   ),
                   shape: BoxShape.circle,
                 ),
                 todayDecoration: BoxDecoration(
-                  color: Colors.orange.shade200,
+                  color: Colors.green.shade200,
                   shape: BoxShape.circle,
                 ),
                 markerDecoration: BoxDecoration(
@@ -269,11 +269,11 @@ class _ExerciseRecordScreenState extends ConsumerState<ExerciseRecordScreen>
                 ),
                 leftChevronIcon: Icon(
                   Icons.chevron_left,
-                  color: Colors.orange.shade600,
+                  color: Colors.green.shade600,
                 ),
                 rightChevronIcon: Icon(
                   Icons.chevron_right,
-                  color: Colors.orange.shade600,
+                  color: Colors.green.shade600,
                 ),
               ),
               calendarBuilders: CalendarBuilders(

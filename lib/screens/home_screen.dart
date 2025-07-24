@@ -194,7 +194,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             ),
                             _buildAnimatedMenuCard(
                               context,
-                              '데이터\n내보내기',
+                              '데이터\n관리',
                               Icons.upload_file_outlined,
                               [Colors.teal.shade400, Colors.teal.shade600],
                               () {

@@ -127,7 +127,7 @@ class _StatisticsScreenState extends ConsumerState<StatisticsScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '통계 & 차트',
+                  '피트니스 분석',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,

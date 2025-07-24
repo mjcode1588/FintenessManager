@@ -349,7 +349,7 @@ class ExportScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '데이터 내보내기',
+                  '데이터 관리',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -357,7 +357,7 @@ class ExportScreen extends ConsumerWidget {
                   ),
                 ),
                 Text(
-                  '운동 기록을 파일로 내보내세요',
+                  '운동 기록을 파일을 엑셀로 관리하세요.',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey.shade600,
