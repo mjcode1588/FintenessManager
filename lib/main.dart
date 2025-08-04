@@ -11,17 +11,22 @@ import 'screens/exercise_record_screen.dart';
 import 'screens/weight_record_screen.dart';
 import 'screens/statistics_screen.dart';
 import 'screens/export_screen.dart';
+import 'screens/screen_wrapper.dart';
+import 'navigation/navigation_wrapper.dart';
+
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChannels.platform.invokeMethod('SystemNavigator.routeInformationUpdated');
+  SystemChannels.platform.invokeMethod(
+    'SystemNavigator.routeInformationUpdated',
+  );
 
   // 웹에서 sqflite를 사용하기 위한 초기화
   if (kIsWeb) {
     // 웹에서는 sqflite_common_ffi를 사용
     databaseFactory = databaseFactoryFfi;
   }
-  
+
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -37,39 +42,19 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       routerConfig: _router,
+      builder: (context, child) {
+        return NavigationWrapper(child: child ?? const SizedBox.shrink());
+      },
     );
   }
 }
 
-class HomeWrapper extends StatefulWidget {
+class HomeWrapper extends StatelessWidget {
   const HomeWrapper({super.key});
 
   @override
-  State<HomeWrapper> createState() => _HomeWrapperState();
-}
-
-class _HomeWrapperState extends State<HomeWrapper> {
-  DateTime? _lastPressedAt;
-
-  @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        if (_lastPressedAt == null || 
-            DateTime.now().difference(_lastPressedAt!) > const Duration(seconds: 2)) {
-          _lastPressedAt = DateTime.now();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('뒤로가기 버튼을 한 번 더 누르면 앱이 종료됩니다'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-          return false;
-        }
-        return true;
-      },
-      child: const HomeScreen(),
-    );
+    return const HomeScreen();
   }
 }
 
@@ -82,57 +67,34 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/exercises',
-      builder: (context, state) => WillPopScope(
-        onWillPop: () async {
-          context.go('/');
-          return false;
-        },
-        child: const ExerciseListScreen(),
-      ),
-    ),
-    GoRoute(
-      path: '/add-exercise',
-      builder: (context, state) => const AddExerciseScreen(),
+      builder: (context, state) => const ScreenWrapper(child: ExerciseListScreen()),
+      routes: [
+        GoRoute(
+          path: 'add',
+          builder: (context, state) => const ScreenWrapper(child: AddExerciseScreen()),
+        ),
+      ],
     ),
     GoRoute(
       path: '/exercise-record',
-      builder: (context, state) => WillPopScope(
-        onWillPop: () async {
-          context.go('/');
-          return false;
-        },
-        child: const ExerciseRecordScreen(),
-      ),
+      builder: (context, state) => const ScreenWrapper(child: ExerciseRecordScreen()),
     ),
     GoRoute(
       path: '/weight-record',
-      builder: (context, state) => WillPopScope(
-        onWillPop: () async {
-          context.go('/');
-          return false;
-        },
-        child: const WeightRecordScreen(),
-      ),
+      builder: (context, state) => const ScreenWrapper(child: WeightRecordScreen()),
     ),
     GoRoute(
       path: '/statistics',
-      builder: (context, state) => WillPopScope(
-        onWillPop: () async {
-          context.go('/');
-          return false;
-        },
-        child: const StatisticsScreen(),
-      ),
+      builder: (context, state) => const ScreenWrapper(child: StatisticsScreen()),
     ),
     GoRoute(
       path: '/export',
-      builder: (context, state) => WillPopScope(
-        onWillPop: () async {
-          context.go('/');
-          return false;
-        },
-        child: ExportScreen(),
-      ),
+      builder: (context, state) => ScreenWrapper(child: ExportScreen()),
+    ),
+    // 기존 add-exercise 라우트 호환성을 위해 유지
+    GoRoute(
+      path: '/add-exercise',
+      redirect: (context, state) => '/exercises/add',
     ),
   ],
 );

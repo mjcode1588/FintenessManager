@@ -1,108 +1,499 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../models/exercise_type.dart';
 import '../providers/exercise_provider.dart';
 import '../providers/database_provider.dart';
+import '../navigation/back_button_mixin.dart';
 
-class ExerciseListScreen extends ConsumerWidget {
+class ExerciseListScreen extends ConsumerStatefulWidget {
   const ExerciseListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ExerciseListScreen> createState() => _ExerciseListScreenState();
+}
+
+class _ExerciseListScreenState extends ConsumerState<ExerciseListScreen> 
+    with TickerProviderStateMixin, BackButtonMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+    
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.2),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutCubic,
+    ));
+    
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final exerciseTypesAsync = ref.watch(exerciseTypesProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('운동 종류 관리'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        leading: IconButton(
-          icon: const Icon(Icons.home),
-          onPressed: () => context.go('/'),
+    return buildWithBackButton(
+      child: Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.blue.shade50,
+              Colors.indigo.shade50,
+              Colors.purple.shade50,
+            ],
+          ),
         ),
-        actions: [
-          IconButton(
-            onPressed: () => context.go('/add-exercise'),
-            icon: const Icon(Icons.add),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(context),
+              Expanded(
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: exerciseTypesAsync.when(
+                      data: (exerciseTypes) => _buildExerciseList(exerciseTypes),
+                      loading: () => const Center(child: CircularProgressIndicator()),
+                      error: (error, stack) => _buildErrorState(error),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: _buildFloatingActionButton(),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20.0),
+      child: Row(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade400, Colors.indigo.shade400],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.shade200,
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Consumer(
+              builder: (context, ref, _) {
+                return IconButton(
+                  onPressed: () async {
+                    if (!context.mounted) return;
+                    
+                    final navigationManager = ref.read(navigationManagerProvider);
+                    final result = await navigationManager.handleBackNavigation(context);
+                    
+                    if (context.mounted) {
+                      await navigationManager.executeNavigation(context, result);
+                    }
+                  },
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '운동 종류 관리',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                Text(
+                  '운동 종류를 추가하고 관리하세요',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
-      body: exerciseTypesAsync.when(
-        data: (exerciseTypes) {
-          if (exerciseTypes.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.fitness_center, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    '등록된 운동이 없습니다.\n새로운 운동을 추가해보세요!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
-                ],
-              ),
+    );
+  }
+
+  Widget _buildFloatingActionButton() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade400, Colors.indigo.shade500],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.shade300,
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: FloatingActionButton(
+        onPressed: () => context.go('/exercises/add'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: const Icon(Icons.add, color: Colors.white, size: 28),
+      ),
+    );
+  }
+  Widget _buildExerciseList(List<Map<String, dynamic>> exerciseTypes) {
+    if (exerciseTypes.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    // 부위별로 그룹화
+    final groupedExercises = <String, List<Map<String, dynamic>>>{};
+    for (final exercise in exerciseTypes) {
+      final bodyPart = exercise['body_part'] as String;
+      groupedExercises.putIfAbsent(bodyPart, () => []).add(exercise);
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      itemCount: groupedExercises.length,
+      itemBuilder: (context, index) {
+        final bodyPart = groupedExercises.keys.elementAt(index);
+        final exercises = groupedExercises[bodyPart]!;
+        
+        return TweenAnimationBuilder<double>(
+          duration: Duration(milliseconds: 400 + (index * 100)),
+          tween: Tween(begin: 0.0, end: 1.0),
+          curve: Curves.easeOutBack,
+          builder: (context, value, child) {
+            return Transform.scale(
+              scale: value,
+              child: _buildBodyPartCard(bodyPart, exercises),
             );
-          }
+          },
+        );
+      },
+    );
+  }
 
-          // 부위별로 그룹화
-          final groupedExercises = <String, List<Map<String, dynamic>>>{};
-          for (final exercise in exerciseTypes) {
-            final bodyPart = exercise['body_part'] as String;
-            groupedExercises.putIfAbsent(bodyPart, () => []).add(exercise);
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: groupedExercises.length,
-            itemBuilder: (context, index) {
-              final bodyPart = groupedExercises.keys.elementAt(index);
-              final exercises = groupedExercises[bodyPart]!;
-              
-              return Card(
-                margin: const EdgeInsets.only(bottom: 16),
-                child: ExpansionTile(
-                  title: Text(
-                    _getBodyPartName(bodyPart),
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  leading: Icon(_getBodyPartIcon(bodyPart)),
-                  children: exercises.map((exercise) {
-                    return ListTile(
-                      title: Text(exercise['name'] as String),
-                      subtitle: Text(
-                        '${_getCategoryName(exercise['category'] as String)} • ${_getCountingMethodName(exercise['counting_method'] as String)}',
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: () => _showEditExerciseDialog(context, ref, exercise),
-                            icon: const Icon(Icons.edit),
-                          ),
-                          IconButton(
-                            onPressed: () => _showDeleteConfirmDialog(context, ref, exercise),
-                            icon: const Icon(Icons.delete),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.grey.shade200, Colors.grey.shade100],
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.fitness_center,
+              size: 64,
+              color: Colors.grey.shade400,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            '등록된 운동이 없습니다',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '새로운 운동을 추가해보세요!',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey.shade500,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade400, Colors.indigo.shade500],
+              ),
+              borderRadius: BorderRadius.circular(25),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.shade200,
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
                 ),
-              );
-            },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(
-          child: Text('오류가 발생했습니다: $error'),
+              ],
+            ),
+            child: ElevatedButton.icon(
+              onPressed: () => context.go('/exercises/add'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
+                ),
+              ),
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text(
+                '운동 추가하기',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(Object error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 64,
+            color: Colors.red.shade300,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            '오류가 발생했습니다',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.red.shade700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '$error',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.red.shade500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBodyPartCard(String bodyPart, List<Map<String, dynamic>> exercises) {
+    final bodyPartColor = _getBodyPartColor(bodyPart);
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: bodyPartColor.withValues(alpha: 0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.white.withValues(alpha: 0.8),
+            blurRadius: 8,
+            offset: const Offset(-2, -2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: ExpansionTile(
+          backgroundColor: Colors.white,
+          collapsedBackgroundColor: Colors.white,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [bodyPartColor, bodyPartColor.withValues(alpha: 0.8)],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  _getBodyPartIcon(bodyPart),
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                _getBodyPartName(bodyPart),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: bodyPartColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${exercises.length}개',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: bodyPartColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          children: exercises.map((exercise) => _buildExerciseItem(exercise, bodyPartColor)).toList(),
         ),
       ),
     );
+  }
+
+  Widget _buildExerciseItem(Map<String, dynamic> exercise, Color bodyPartColor) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bodyPartColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: bodyPartColor.withValues(alpha: 0.1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  exercise['name'] as String,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: bodyPartColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _getCategoryName(exercise['category'] as String),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: bodyPartColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _getCountingMethodName(exercise['counting_method'] as String),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  onPressed: () => _showEditExerciseDialog(context, ref, exercise),
+                  icon: Icon(Icons.edit_outlined, color: Colors.blue.shade600, size: 20),
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  onPressed: () => _showDeleteConfirmDialog(context, ref, exercise),
+                  icon: Icon(Icons.delete_outline, color: Colors.red.shade600, size: 20),
+                  constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
   }
 
   Future<void> _showEditExerciseDialog(BuildContext context, WidgetRef ref, Map<String, dynamic> exercise) async {
@@ -258,6 +649,27 @@ class ExerciseListScreen extends ConsumerWidget {
     }
   }
 
+  Color _getBodyPartColor(String bodyPart) {
+    switch (bodyPart) {
+      case 'chest':
+        return Colors.red.shade400;
+      case 'back':
+        return Colors.blue.shade400;
+      case 'shoulders':
+        return Colors.orange.shade400;
+      case 'arms':
+        return Colors.green.shade400;
+      case 'legs':
+        return Colors.purple.shade400;
+      case 'core':
+        return Colors.teal.shade400;
+      case 'cardio':
+        return Colors.pink.shade400;
+      default:
+        return Colors.grey.shade400;
+    }
+  }
+
   String _getBodyPartName(String bodyPart) {
     switch (bodyPart) {
       case 'chest':
@@ -282,19 +694,19 @@ class ExerciseListScreen extends ConsumerWidget {
   IconData _getBodyPartIcon(String bodyPart) {
     switch (bodyPart) {
       case 'chest':
-        return Icons.fitness_center;
+        return Icons.favorite;
       case 'back':
-        return Icons.fitness_center;
+        return Icons.accessibility_new;
       case 'shoulders':
-        return Icons.fitness_center;
+        return Icons.sports_gymnastics;
       case 'arms':
-        return Icons.fitness_center;
+        return Icons.sports_martial_arts;
       case 'legs':
         return Icons.directions_run;
       case 'core':
-        return Icons.self_improvement;
+        return Icons.center_focus_strong;
       case 'cardio':
-        return Icons.directions_bike;
+        return Icons.favorite_border;
       default:
         return Icons.fitness_center;
     }
@@ -320,5 +732,5 @@ class ExerciseListScreen extends ConsumerWidget {
       default:
         return method;
     }
-  }
+
 }

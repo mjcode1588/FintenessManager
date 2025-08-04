@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../models/exercise_type.dart';
 import '../providers/database_provider.dart';
 import '../providers/exercise_provider.dart';
+import '../navigation/back_button_mixin.dart';
 
 class AddExerciseScreen extends ConsumerStatefulWidget {
   const AddExerciseScreen({super.key});
@@ -12,7 +13,8 @@ class AddExerciseScreen extends ConsumerStatefulWidget {
   ConsumerState<AddExerciseScreen> createState() => _AddExerciseScreenState();
 }
 
-class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
+class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> 
+    with TickerProviderStateMixin, BackButtonMixin {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
 
@@ -22,11 +24,38 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
   WeightType _selectedWeightType = WeightType.weighted;
 
   bool _isLoading = false;
+  
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
     _initializeDefaultExercises();
+    
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+    
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutCubic,
+    ));
+    
+    _animationController.forward();
   }
 
   Future<void> _initializeDefaultExercises() async {
@@ -36,145 +65,478 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('운동 종류 추가'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/exercises'),
+    return buildWithBackButton(
+      child: Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.green.shade50,
+              Colors.blue.shade50,
+              Colors.indigo.shade50,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(context),
+              Expanded(
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: _buildForm(),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '새 운동 추가',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 16),
+    ),
+    );
+  }
 
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: '운동 이름',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return '운동 이름을 입력해주세요';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  DropdownButtonFormField<ExerciseCategory>(
-                    value: _selectedCategory,
-                    decoration: const InputDecoration(
-                      labelText: '운동 카테고리',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: ExerciseCategory.values.map((category) {
-                      return DropdownMenuItem(
-                        value: category,
-                        child: Text(_getCategoryName(category)),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedCategory = value!;
-                        if (value == ExerciseCategory.cardio) {
-                          _selectedWeightType = WeightType.bodyweight;
-                          _selectedCountingMethod = CountingMethod.time;
-                        }
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  if (_selectedCategory == ExerciseCategory.weight)
-                    DropdownButtonFormField<WeightType>(
-                      value: _selectedWeightType,
-                      decoration: const InputDecoration(
-                        labelText: '무게 타입',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: WeightType.values.map((type) {
-                        return DropdownMenuItem(
-                          value: type,
-                          child: Text(_getWeightTypeName(type)),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedWeightType = value!;
-                        });
-                      },
-                    ),
-                  if (_selectedCategory == ExerciseCategory.weight)
-                    const SizedBox(height: 16),
-
-                  DropdownButtonFormField<BodyPart>(
-                    value: _selectedBodyPart,
-                    decoration: const InputDecoration(
-                      labelText: '운동 부위',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: BodyPart.values.map((bodyPart) {
-                      return DropdownMenuItem(
-                        value: bodyPart,
-                        child: Text(_getBodyPartName(bodyPart)),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedBodyPart = value!;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  DropdownButtonFormField<CountingMethod>(
-                    value: _selectedCountingMethod,
-                    decoration: const InputDecoration(
-                      labelText: '카운팅 방법',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: CountingMethod.values.map((method) {
-                      return DropdownMenuItem(
-                        value: method,
-                        child: Text(_getCountingMethodName(method)),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedCountingMethod = value!;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 24),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _addExercise,
-                      child: _isLoading
-                          ? const CircularProgressIndicator()
-                          : const Text('운동 추가'),
-                    ),
-                  ),
-                ],
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20.0),
+      child: Row(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.green.shade400, Colors.blue.shade400],
               ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.green.shade200,
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Consumer(
+              builder: (context, ref, _) {
+                return IconButton(
+                  onPressed: () async {
+                    if (!context.mounted) return;
+                    
+                    final navigationManager = ref.read(navigationManagerProvider);
+                    final result = await navigationManager.handleBackNavigation(context);
+                    
+                    if (context.mounted) {
+                      await navigationManager.executeNavigation(context, result);
+                    }
+                  },
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                );
+              },
             ),
           ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '운동 종류 추가',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                Text(
+                  '새로운 운동을 추가해보세요',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildForm() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.green.shade400, Colors.blue.shade400],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.add_circle_outline,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      '새 운동 정보',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                _buildTextField(),
+                const SizedBox(height: 20),
+
+                _buildCategoryDropdown(),
+                const SizedBox(height: 20),
+
+                if (_selectedCategory == ExerciseCategory.weight) ...[
+                  _buildWeightTypeDropdown(),
+                  const SizedBox(height: 20),
+                ],
+
+                _buildBodyPartDropdown(),
+                const SizedBox(height: 20),
+
+                _buildCountingMethodDropdown(),
+                const SizedBox(height: 32),
+
+                _buildSubmitButton(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '운동 이름',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _nameController,
+          decoration: InputDecoration(
+            hintText: '예: 벤치프레스, 스쿼트',
+            filled: true,
+            fillColor: Colors.grey.shade50,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade200),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.blue.shade400, width: 2),
+            ),
+            prefixIcon: Icon(Icons.fitness_center, color: Colors.grey.shade400),
+          ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return '운동 이름을 입력해주세요';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '운동 카테고리',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: DropdownButtonFormField<ExerciseCategory>(
+            value: _selectedCategory,
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              prefixIcon: Icon(
+                _selectedCategory == ExerciseCategory.weight 
+                  ? Icons.fitness_center 
+                  : Icons.directions_run,
+                color: Colors.grey.shade400,
+              ),
+            ),
+            items: ExerciseCategory.values.map((category) {
+              return DropdownMenuItem(
+                value: category,
+                child: Text(_getCategoryName(category)),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedCategory = value!;
+                if (value == ExerciseCategory.cardio) {
+                  _selectedWeightType = WeightType.bodyweight;
+                  _selectedCountingMethod = CountingMethod.time;
+                }
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWeightTypeDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '무게 타입',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: DropdownButtonFormField<WeightType>(
+            value: _selectedWeightType,
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              prefixIcon: Icon(
+                _selectedWeightType == WeightType.weighted 
+                  ? Icons.fitness_center 
+                  : Icons.accessibility,
+                color: Colors.grey.shade400,
+              ),
+            ),
+            items: WeightType.values.map((type) {
+              return DropdownMenuItem(
+                value: type,
+                child: Text(_getWeightTypeName(type)),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedWeightType = value!;
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBodyPartDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '운동 부위',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: DropdownButtonFormField<BodyPart>(
+            value: _selectedBodyPart,
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              prefixIcon: Icon(
+                _getBodyPartIcon(_selectedBodyPart),
+                color: _getBodyPartColor(_selectedBodyPart),
+              ),
+            ),
+            items: BodyPart.values.map((bodyPart) {
+              return DropdownMenuItem(
+                value: bodyPart,
+                child: Row(
+                  children: [
+                    Icon(
+                      _getBodyPartIcon(bodyPart),
+                      color: _getBodyPartColor(bodyPart),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(_getBodyPartName(bodyPart)),
+                  ],
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedBodyPart = value!;
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCountingMethodDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '카운팅 방법',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: DropdownButtonFormField<CountingMethod>(
+            value: _selectedCountingMethod,
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              prefixIcon: Icon(
+                _selectedCountingMethod == CountingMethod.reps 
+                  ? Icons.numbers 
+                  : Icons.timer,
+                color: Colors.grey.shade400,
+              ),
+            ),
+            items: CountingMethod.values.map((method) {
+              return DropdownMenuItem(
+                value: method,
+                child: Text(_getCountingMethodName(method)),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() {
+                _selectedCountingMethod = value!;
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.green.shade400, Colors.blue.shade500],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.green.shade200,
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ElevatedButton(
+          onPressed: _isLoading ? null : _addExercise,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          child: _isLoading
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+              : const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_circle, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text(
+                      '운동 추가',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ),
     );
@@ -215,7 +577,13 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(const SnackBar(content: Text('운동이 추가되었습니다')));
-          context.go('/exercises');
+          
+          // NavigationManager를 통해 안전하게 뒤로가기
+          final navigationManager = ref.read(navigationManagerProvider);
+          final result = await navigationManager.handleBackNavigation(context);
+          if (context.mounted) {
+            await navigationManager.executeNavigation(context, result);
+          }
         }
       }
     } catch (e) {
@@ -230,6 +598,44 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Color _getBodyPartColor(BodyPart bodyPart) {
+    switch (bodyPart) {
+      case BodyPart.chest:
+        return Colors.red.shade400;
+      case BodyPart.back:
+        return Colors.blue.shade400;
+      case BodyPart.shoulders:
+        return Colors.orange.shade400;
+      case BodyPart.arms:
+        return Colors.green.shade400;
+      case BodyPart.legs:
+        return Colors.purple.shade400;
+      case BodyPart.core:
+        return Colors.teal.shade400;
+      case BodyPart.cardio:
+        return Colors.pink.shade400;
+    }
+  }
+
+  IconData _getBodyPartIcon(BodyPart bodyPart) {
+    switch (bodyPart) {
+      case BodyPart.chest:
+        return Icons.favorite;
+      case BodyPart.back:
+        return Icons.accessibility_new;
+      case BodyPart.shoulders:
+        return Icons.sports_gymnastics;
+      case BodyPart.arms:
+        return Icons.sports_martial_arts;
+      case BodyPart.legs:
+        return Icons.directions_run;
+      case BodyPart.core:
+        return Icons.center_focus_strong;
+      case BodyPart.cardio:
+        return Icons.favorite_border;
     }
   }
 
@@ -281,6 +687,7 @@ class _AddExerciseScreenState extends ConsumerState<AddExerciseScreen> {
 
   @override
   void dispose() {
+    _animationController.dispose();
     _nameController.dispose();
     super.dispose();
   }

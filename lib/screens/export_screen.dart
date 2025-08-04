@@ -8,15 +8,19 @@ import '../models/weight_record.dart';
 import '../models/exercise_record.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../navigation/back_button_mixin.dart';
 
-class ExportScreen extends StatelessWidget {
-  final dbHelper = DatabaseHelper();
+class ExportScreen extends ConsumerWidget {
+  const ExportScreen({super.key});
 
   Future<void> _exportData(BuildContext context) async {
     try {
+      final dbHelper = DatabaseHelper();
       // 1. Fetch data from database
       final weightData = await dbHelper.getAllWeightRecords();
       final exerciseData = await dbHelper.getAllExerciseRecordsWithDetails();
+      final exerciseTypes = await dbHelper.getAllExerciseTypes();
 
       final List<WeightRecord> weightRecords = weightData
           .map(
@@ -93,6 +97,25 @@ class ExportScreen extends StatelessWidget {
         ]);
       }
 
+      // Create Exercise Types Sheet
+      Sheet exerciseTypeSheet = excel['Exercise Types'];
+      exerciseTypeSheet.appendRow([
+        TextCellValue('ID'),
+        TextCellValue('Name'),
+        TextCellValue('Category'),
+        TextCellValue('Body_Part'),
+        TextCellValue('Counting_Method'),
+      ]);
+      for (var type in exerciseTypes) {
+        exerciseTypeSheet.appendRow([
+          TextCellValue(type['id'].toString()),
+          TextCellValue(type['name'] as String),
+          TextCellValue(type['category'] as String),
+          TextCellValue(type['body_part'] as String),
+          TextCellValue(type['counting_method'] as String),
+        ]);
+      }
+
       // 3. Save the file
       final directory = await getTemporaryDirectory();
       final filePath = '${directory.path}/fitness_data.xlsx';
@@ -124,6 +147,7 @@ class ExportScreen extends StatelessWidget {
 
   Future<void> _importData(BuildContext context) async {
     try {
+      final dbHelper = DatabaseHelper();
       final typeGroup = XTypeGroup(label: 'excel', extensions: ['xlsx']);
       final file = await openFile(acceptedTypeGroups: [typeGroup]);
       if (file == null) {
@@ -134,6 +158,48 @@ class ExportScreen extends StatelessWidget {
       }
       final bytes = await file.readAsBytes();
       final excel = Excel.decodeBytes(bytes);
+
+      // Import Exercise Types
+      if (excel.sheets.containsKey('Exercise Types')) {
+        final sheet = excel['Exercise Types']!;
+        for (int i = 1; i < sheet.rows.length; i++) {
+          final row = sheet.rows[i];
+          if (row.length < 5) continue; // Need at least 5 columns
+          
+          final typeId = row[0]?.value.toString();
+          final typeName = row[1]?.value.toString() ?? '';
+          final category = row[2]?.value.toString() ?? '';
+          final bodyPart = row[3]?.value.toString() ?? '';
+          final countingMethod = row[4]?.value.toString() ?? '';
+          
+          if (typeName.isNotEmpty) {
+            // Check for duplicate by name first
+            final existingType = await dbHelper.getExerciseTypeByName(typeName);
+            if (existingType == null) {
+              // Insert with all available fields
+              await dbHelper.insertExerciseType({
+                'name': typeName,
+                'category': category,
+                'body_part': bodyPart,
+                'counting_method': countingMethod,
+              });
+            } else {
+              // Update existing type with additional fields if they're missing
+              final db = await dbHelper.database;
+              await db.update(
+                'exercise_types',
+                {
+                  'category': category.isNotEmpty ? category : existingType['category'],
+                  'body_part': bodyPart.isNotEmpty ? bodyPart : existingType['body_part'],
+                  'counting_method': countingMethod.isNotEmpty ? countingMethod : existingType['counting_method'],
+                },
+                where: 'id = ?',
+                whereArgs: [existingType['id']],
+              );
+            }
+          }
+        }
+      }
 
       // Import Weight Records
       if (excel.sheets.containsKey('Weight Records')) {
@@ -218,43 +284,154 @@ class ExportScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('데이터 내보내기'),
-        leading: IconButton(
-          icon: Icon(Icons.home),
-          onPressed: () {
-            // go_router를 사용하는 다른 화면들과 동일하게 홈으로 이동
-            Navigator.of(
-              context,
-            ).popUntil((route) => route.isFirst); // 기존 코드 주석처리 가능
-            // context.go('/')로 홈 이동
-            // go_router import 필요
-            // context.go('/')
-            // 아래처럼 실제로 context.go('/')로 변경
-            // (go_router import가 없으면 추가)
-            // context.go('/')
-            // 실제 적용:
-            context.go('/');
-          },
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.teal.shade50,
+              Colors.cyan.shade50,
+              Colors.blue.shade50,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(context, ref),
+              Expanded(child: _buildBody(context)),
+            ],
+          ),
         ),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton(
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, WidgetRef ref) {
+    return Container(
+      padding: const EdgeInsets.all(20.0),
+      child: Row(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.teal.shade400, Colors.cyan.shade400],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.teal.shade200,
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: IconButton(
+              onPressed: () async {
+                if (!context.mounted) return;
+                
+                final navigationManager = ref.read(navigationManagerProvider);
+                final result = await navigationManager.handleBackNavigation(context);
+                
+                if (context.mounted) {
+                  await navigationManager.executeNavigation(context, result);
+                }
+              },
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '데이터 관리',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                Text(
+                  '운동 기록을 파일을 엑셀로 관리하세요.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.teal.shade200, Colors.cyan.shade200],
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.upload_file,
+              size: 64,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 32),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.teal.shade400, Colors.cyan.shade500],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.teal.shade200,
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ElevatedButton.icon(
               onPressed: () => _exportData(context),
-              child: Text('운동기록 엑셀파일로 내보내기'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                shadowColor: Colors.transparent,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              icon: const Icon(Icons.file_download, color: Colors.white),
+              label: const Text(
+                '엑셀 파일로 내보내기',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-            SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: () => _importData(context),
-              child: Text('엑셀파일에서 데이터 가져오기'),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () => _importData(context),
+            child: const Text('엑셀파일에서 데이터 가져오기'),
+          ),
+        ],
       ),
     );
   }
